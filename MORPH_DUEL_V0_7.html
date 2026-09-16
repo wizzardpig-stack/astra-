@@ -1,0 +1,2101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>MORPH DUEL V0.7</title>
+<style>
+  :root{
+    --ink:#ece7dc; --muted:#9f9b92; --line:#3a3a3c; --panel:rgba(13,14,16,.72);
+    --player:#e5c36a; --enemy:#d23a45; --energy:#6db8ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07080a;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  canvas{display:block;width:100%;height:100%}
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:10}
+  .topbar{position:absolute;left:24px;right:24px;top:18px;display:grid;grid-template-columns:1fr auto 1fr;gap:20px;align-items:start}
+  .fighterHud{min-width:0}
+  .fighterHud.enemy{text-align:right}
+  .nameRow{display:flex;gap:10px;align-items:baseline;margin-bottom:8px}.enemy .nameRow{justify-content:flex-end}
+  .name{font-weight:800;letter-spacing:.08em;font-size:13px}.formName{font-size:11px;color:var(--muted);letter-spacing:.12em}
+  .bar{height:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);position:relative;overflow:hidden}
+  .bar>i{display:block;height:100%;width:100%;transform-origin:left center;background:linear-gradient(90deg,#8f1f29,#d23a45)}
+  .bar>u{position:absolute;inset:0;display:block;background:rgba(255,255,255,.55);transform-origin:left center;opacity:.35;pointer-events:none}
+  .player .bar>i{background:linear-gradient(90deg,#8f6d2d,#e5c36a)}
+  .enemy .bar>i{transform-origin:right center;margin-left:auto}
+  .enemy .bar>u{transform-origin:right center}
+  .subrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+  .meter{height:5px;background:rgba(255,255,255,.06);overflow:hidden}.meter i{display:block;height:100%;background:#6db8ff;transform-origin:left}.enemy .meter i{margin-left:auto;transform-origin:right}
+  .meter.transform i{background:#b68cff}
+  .meter.transform.ready i{background:#fff;box-shadow:0 0 10px #b68cff}
+  .phaseRow{display:flex;gap:5px;margin-top:7px;align-items:center}.enemy .phaseRow{justify-content:flex-end}.phaseDot{width:18px;height:3px;background:rgba(255,255,255,.12);transition:background .15s,height .15s}.phaseDot.spent{background:rgba(255,255,255,.035)}.phaseDot.current{height:6px;background:var(--player)}.enemy .phaseDot.current{background:var(--enemy)}.phaseDot.future{background:rgba(255,255,255,.18)}
+  .centerHud{text-align:center;padding-top:2px}.timer{font-size:28px;font-weight:900;letter-spacing:.08em}.round{font-size:10px;color:var(--muted);letter-spacing:.2em;margin-top:3px}
+  #formRail{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:7px;align-items:center}
+  .pip{width:27px;height:4px;background:rgba(255,255,255,.12)}.pip.on{background:var(--player)}.pip.current{height:7px;background:#fff}
+  #status{position:absolute;left:50%;top:18%;transform:translateX(-50%);font-weight:900;letter-spacing:.16em;font-size:18px;text-shadow:0 2px 12px #000;text-align:center;white-space:nowrap}
+  #status small{display:block;font-size:10px;color:#c9c5bc;margin-top:7px;letter-spacing:.2em}
+  #combo{position:absolute;left:50%;top:26%;transform:translateX(-50%);font-size:12px;letter-spacing:.24em;color:#e5c36a;opacity:0;transition:opacity .18s}
+  #flash{position:absolute;inset:0;background:radial-gradient(circle at 50% 55%,rgba(255,255,255,0) 40%,rgba(210,58,69,.55) 100%);opacity:0;transition:opacity .16s ease-out}
+  #help{position:absolute;left:22px;bottom:22px;font-size:11px;line-height:1.7;color:#bab6ad;letter-spacing:.04em;background:rgba(0,0,0,.18);padding:8px 10px;border-left:2px solid rgba(229,195,106,.55)}
+  #menu{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:radial-gradient(circle at 50% 46%,rgba(70,60,48,.18),rgba(5,6,8,.93) 62%)}
+  .menuInner{width:min(620px,90vw);text-align:center}.eyebrow{font-size:11px;letter-spacing:.35em;color:#a59e91;margin-bottom:14px}.title{font-size:clamp(48px,8vw,92px);font-weight:950;line-height:.88;letter-spacing:-.055em}.title span{display:block;color:#b88b48;font-weight:700;font-size:.34em;letter-spacing:.32em;margin-top:18px}
+  .desc{max-width:520px;margin:24px auto 26px;color:#a9a59d;line-height:1.55;font-size:14px}
+  button{pointer-events:auto;border:1px solid #9a7c4b;background:#151515;color:#f1eadc;padding:14px 30px;font-weight:800;letter-spacing:.16em;cursor:pointer;min-width:180px}button:hover{background:#1f1d19}button:disabled{opacity:.48;cursor:wait}#bootStatus{min-height:18px;margin-top:12px;font-size:10px;letter-spacing:.12em;color:#9f9b92}#bootStatus.error{color:#ff8f8f}
+  .micro{margin-top:16px;font-size:10px;color:#7f7a72;letter-spacing:.12em}
+  #endCard{position:fixed;inset:0;z-index:25;display:none;place-items:center;background:rgba(3,4,5,.66);backdrop-filter:blur(3px)}
+  #endCard .inner{text-align:center}.endTitle{font-size:54px;font-weight:950;letter-spacing:.05em}.endSub{color:#aaa49a;margin:8px 0 24px}
+  #transformBanner{position:fixed;inset:0;z-index:20;display:none;pointer-events:none;place-items:center;background:radial-gradient(circle,rgba(180,140,80,.12),rgba(0,0,0,0) 55%)}
+  #transformBanner .tb{text-align:center;text-shadow:0 4px 18px #000}.tb .roman{font-size:13px;letter-spacing:.5em;color:#d8cdbb}.tb .tf{font-size:44px;font-weight:950;letter-spacing:.08em;margin-top:6px}
+  @media(max-width:700px){.topbar{left:10px;right:10px;top:10px;gap:8px}.name{font-size:10px}.formName{display:none}.timer{font-size:22px}#help{display:none}.title{font-size:52px}}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="topbar">
+    <div class="fighterHud player">
+      <div class="nameRow"><span class="name">AUREL</span><span class="formName" id="pFormName">I · BASE</span></div>
+      <div class="bar"><u id="pHpGhost"></u><i id="pHp"></i></div>
+      <div class="subrow"><div class="meter"><i id="pEnergy"></i></div><div class="meter transform" id="pMorphWrap"><i id="pMorph"></i></div></div><div class="phaseRow" id="pPhaseRow"></div>
+    </div>
+    <div class="centerHud"><div class="timer" id="timer">420</div><div class="round">DUEL // 01</div></div>
+    <div class="fighterHud enemy">
+      <div class="nameRow"><span class="formName" id="eFormName">I · BASE</span><span class="name">VANTA</span></div>
+      <div class="bar"><u id="eHpGhost"></u><i id="eHp"></i></div>
+      <div class="subrow"><div class="meter"><i id="eEnergy"></i></div><div class="meter transform" id="eMorphWrap"><i id="eMorph"></i></div></div><div class="phaseRow" id="ePhaseRow"></div>
+    </div>
+  </div>
+  <div id="flash"></div>
+  <div id="status"></div>
+  <div id="combo"></div>
+  <div id="formRail"><span class="pip current"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></div>
+  <div id="help">WASD · MOVE &nbsp; SHIFT · RUN<br>LMB · LIGHT CHAIN &nbsp; RMB · HEAVY CHAIN &nbsp; HOLD · FULL STRING &nbsp; Q · POWER<br>E · DODGE &nbsp; F · GUARD/PARRY &nbsp; R · TRANSFORM<br>CLICK ARENA · CAPTURE MOUSE &nbsp; ESC · RELEASE</div>
+</div>
+<div id="menu"><div class="menuInner"><div class="eyebrow">MYTHIC COMBAT PROTOCOL</div><div class="title">MORPH DUEL<span>V0.7 · PHYSICAL COMBAT + POWER CURVE PASS</span></div><div class="desc">Full-commitment sword work, planted footwork, vector-driven hit reactions, linked combo strings, a real form power curve and a rival that knows exactly how far ahead or behind it is.</div><button id="playBtn" disabled>LOADING CORE</button><div id="bootStatus">INITIALIZING 3D CORE…</div><div class="micro">DESKTOP PROTOTYPE · CLICK ONCE IN-GAME FOR MOUSE CAMERA</div></div></div>
+<div id="endCard"><div class="inner"><div class="endTitle" id="endTitle">VICTORY</div><div class="endSub" id="endSub">The arena remembers.</div><button id="rematch">REMATCH</button></div></div>
+<div id="transformBanner"><div class="tb"><div class="roman" id="tbRoman">FORM II</div><div class="tf" id="tbName">ARMORED</div></div></div>
+<script>
+window.__threeReady = new Promise((resolve, reject) => {
+  const urls = [
+    'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js',
+    'https://unpkg.com/three@0.160.0/build/three.min.js'
+  ];
+  let i = 0;
+  const loadNext = () => {
+    if (i >= urls.length) { reject(new Error('Unable to load Three.js from available CDNs.')); return; }
+    const script = document.createElement('script');
+    script.src = urls[i++];
+    script.async = true;
+    script.onload = () => window.THREE ? resolve() : loadNext();
+    script.onerror = loadNext;
+    document.head.appendChild(script);
+  };
+  loadNext();
+});
+</script>
+<script>
+function showBootError(err){
+  console.error(err);
+  const btn=document.getElementById('playBtn');
+  const status=document.getElementById('bootStatus');
+  if(btn){btn.disabled=true;btn.textContent='CORE LOAD FAILED';}
+  if(status){status.className='error';status.textContent='GAME CORE COULD NOT LOAD. CHECK CONNECTION AND REOPEN THE FILE.';}
+}
+window.__threeReady.then(() => {
+try {
+(() => {
+'use strict';
+/* ============================================================================
+   MORPH DUEL V0.7 — PHYSICAL COMBAT + POWER CURVE PASS
+   Built directly on V0.5. Same five forms, same phase-per-form health, same
+   transformation timing strategy, same arena, controls, camera architecture,
+   AI architecture and abilities. Nothing new was added; what was already here
+   was made to behave like bodies with weight:
+     · full sword swings — windup, acceleration, contact, follow-through,
+       recovery, with ~140-190 degrees of readable weapon travel, driven from
+       the feet up through hips, torso, shoulder, elbow and blade
+     · combo chains that link pose-to-pose instead of resetting to neutral
+     · authored root movement per attack: stepping, weight transfer, lunges
+     · velocity-locked gait so feet stop skating, with real planting, ankles,
+       hip/leg counter-rotation and acceleration lean
+     · planted body weight on heavies, guard, parry, finishers, transforms
+     · hit reactions chosen by the incoming attack vector, knockback steered
+       by the contact point and the blade's own sweep direction
+     · heavies that commit hard and punish hard when they miss
+     · a real form power curve (I 1.00 · II 1.25 · III 1.55 · IV 2.00 · V 2.65)
+       spread across HP, damage, reach, guard, poise, knockback and coverage
+     · an AI that knows how far ahead or behind it is on forms and fights
+       accordingly, still with no input reading and no cheating
+   ========================================================================== */
+const $ = s => document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=t=>t*t*(3-2*t);
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const TAU=Math.PI*2;
+const damp=(rate,dt)=>1-Math.exp(-dt*rate);
+function angleLerp(a,b,t){const d=Math.atan2(Math.sin(b-a),Math.cos(b-a));return a+d*t}
+function angleDelta(a,b){return Math.atan2(Math.sin(b-a),Math.cos(b-a))}
+
+/* Forms escalate through MASS and AUTHORITY. Later forms are bigger, hit
+   harder, reach further, guard harder and are far harder to stagger — they
+   are not faster. atk>1 means slower swings.
+
+   `tier` is the intended relative fighting strength of a form. Every other
+   number in the row is tuned so the composite of health, damage, reach, guard
+   strength, stagger resistance, knockback, attack coverage, Q strength and
+   mass lands on it:   I 1.00 · II 1.25 · III 1.55 · IV 2.00 · V 2.65
+   Measured as an attrition duel that lands within 0.04 of every one of those
+   figures. Against FORM I the cost of winning is 1.6x at II, 2.2x at III,
+   3.8x at IV and 6.5x at V: one form down is a hard but winnable fight, two is
+   a major uphill fight, three is mostly survival, four is close to hopeless
+   unless the stronger fighter is already badly hurt. A weaker form still takes
+   real health off a stronger one the whole way, which is what keeps holding a
+   transformation back a live gamble rather than a mistake. */
+const FORMS=[
+  {name:'BASE',      tier:1.00, scale:1.00, move:7.80, atk:1.00, wind:1.00, recov:0.84, reach:3.50,
+   dmg:1.00, guard:1.00, poise:1.00, resist:1.00, kbOut:1.00, cover:1.00, qPow:1.00, mass:1.00,
+   swing:1.00, stride:0.55, accel:14.0, turn:1.00, fluid:0.00, cam:11.2, power:'ARC SHOT'},
+  {name:'ARMORED',   tier:1.25, scale:1.24, move:7.00, atk:1.14, wind:1.12, recov:1.06, reach:4.05,
+   dmg:1.16, guard:1.48, poise:1.40, resist:0.82, kbOut:1.24, cover:1.08, qPow:1.25, mass:1.58,
+   swing:1.03, stride:0.60, accel:10.5, turn:0.90, fluid:-.02, cam:12.7, power:'WARD BREAK'},
+  {name:'SIGNATURE', tier:1.55, scale:1.38, move:7.35, atk:1.02, wind:0.94, recov:0.80, reach:5.10,
+   dmg:1.16, guard:1.26, poise:1.58, resist:0.74, kbOut:1.42, cover:1.18, qPow:1.55, mass:1.82,
+   swing:1.07, stride:0.57, accel:12.5, turn:1.06, fluid:0.07, cam:14.4, power:'CROWN SPEAR'},
+  {name:'ASCENDED',  tier:2.00, scale:2.05, move:6.80, atk:1.18, wind:1.06, recov:0.94, reach:7.35,
+   dmg:1.50, guard:1.72, poise:2.15, resist:0.58, kbOut:1.92, cover:1.34, qPow:2.00, mass:2.80,
+   swing:1.13, stride:0.34, accel:9.00, turn:0.96, fluid:0.03, cam:19.8, power:'SKY REND'},
+  {name:'COLOSSAL',  tier:2.65, scale:3.20, move:5.80, atk:1.42, wind:1.30, recov:1.22, reach:11.60,
+   dmg:1.92, guard:2.20, poise:3.15, resist:0.40, kbOut:2.60, cover:1.55, qPow:2.65, mass:5.30,
+   swing:1.24, stride:0.62, accel:5.60, turn:0.76, fluid:-.04, cam:30.6, power:'WORLD BREAK'}
+];
+/* Phase health per form. Later phases are long enough that a form advantage
+   is felt as staying power, not just as bigger numbers on the hit. */
+const PHASE_HP=[400,550,750,1000,1350];
+const FORCED_PHASE_HEALTH=.70;
+const roman=['I','II','III','IV','V'];
+const ZERO3=new THREE.Vector3();
+const ATTACK_WINDOW=[-.12,.18];
+
+let scene,camera,renderer;
+let running=false, matchTime=420, lastTs=0, hitFreeze=0, intro=0;
+let keys={}, pointerLocked=false;
+let particles=[], projectiles=[], debris=[];
+let cameraSolids=[];
+let player, enemy;
+let audioCtx=null;
+const arenaRadius=18;
+
+/* ---- camera state: fully independent of any fighter's body rotation ---- */
+const cam={
+  yaw:0, pitch:-0.20, dist:7.4, distTarget:7.4, pullback:0, shake:0, shakeDecay:3.4,
+  pos:new THREE.Vector3(), pivot:new THREE.Vector3(), mouseIdle:0, forward:new THREE.Vector3(0,0,-1), right:new THREE.Vector3(1,0,0)
+};
+
+/* ------------------------------- audio ---------------------------------- */
+function tone(freq=220,dur=.06,type='sine',gain=.03,slideTo=0){
+  if(!audioCtx) return;
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain(), t=audioCtx.currentTime;
+  o.type=type;o.frequency.setValueAtTime(freq,t);
+  if(slideTo)o.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),t+dur);
+  g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(t+dur+.02);
+}
+function noise(dur=.12,gain=.10,freq=1400,type='lowpass'){
+  if(!audioCtx) return;
+  const n=Math.max(1,Math.floor(audioCtx.sampleRate*dur));
+  const buf=audioCtx.createBuffer(1,n,audioCtx.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++){const k=1-i/n;d[i]=(Math.random()*2-1)*k*k;}
+  const src=audioCtx.createBufferSource();src.buffer=buf;
+  const f=audioCtx.createBiquadFilter();f.type=type;f.frequency.value=freq;
+  const g=audioCtx.createGain();g.gain.value=gain;
+  src.connect(f);f.connect(g);g.connect(audioCtx.destination);src.start();
+}
+const sfx={
+  swing(mass){noise(.13,.045,900+400/mass,'bandpass');tone(420/mass,.10,'sine',.012,180/mass)},
+  hitLight(mass){noise(.10,.12,2600,'highpass');noise(.16,.10,320/mass,'lowpass');tone(150,.09,'square',.03,70)},
+  hitHeavy(mass){noise(.22,.18,1500,'lowpass');tone(78/Math.sqrt(mass),.30,'sawtooth',.05,36);tone(240,.08,'square',.03,90)},
+  block(){noise(.10,.10,2200,'bandpass');tone(300,.07,'triangle',.03,180)},
+  parry(){noise(.08,.09,4200,'highpass');tone(1180,.16,'square',.035,620);tone(680,.22,'sine',.03)},
+  clash(){noise(.26,.17,2000,'bandpass');tone(96,.24,'square',.05,42);tone(1500,.10,'square',.03,700)},
+  whiff(){noise(.09,.03,1800,'bandpass')},
+  step(mass){if(mass<1.8)return;noise(.16,.055*mass*.4,180,'lowpass');tone(52,.14,'sine',.02*mass*.3)},
+  power(form){tone(220+form*70,.16,'square',.03,120+form*40);noise(.2,.07,900,'bandpass')},
+  transform(){tone(80,.9,'sawtooth',.05,300);noise(.6,.07,700,'lowpass')},
+  land(){noise(.2,.12,240,'lowpass');tone(64,.2,'sine',.03,30)}
+};
+
+/* ------------------------------- boot ----------------------------------- */
+function init(){
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0x08090a); scene.fog=new THREE.FogExp2(0x08090a,0.014);
+  camera=new THREE.PerspectiveCamera(56,innerWidth/innerHeight,.1,280);
+  renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(innerWidth,innerHeight);
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  document.body.prepend(renderer.domElement);
+  renderer.domElement.tabIndex=0;
+  renderer.domElement.addEventListener('click',()=>{ if(running && document.pointerLockElement!==renderer.domElement) renderer.domElement.requestPointerLock?.(); });
+  document.addEventListener('pointerlockchange',()=>pointerLocked=document.pointerLockElement===renderer.domElement);
+  document.addEventListener('mousemove',e=>{
+    if(!pointerLocked||!running)return;
+    // Plain, predictable mouse look. No auto-lock snap, no acceleration curve.
+    cam.yaw  -= e.movementX*0.0022;
+    cam.pitch = clamp(cam.pitch - e.movementY*0.0016,-0.52,0.30);
+    if(Math.abs(e.movementX)>0.5) cam.mouseIdle=0;
+  });
+  window.addEventListener('resize',onResize);
+  buildArena();
+  player=createFighter('player',new THREE.Color(0xd5b35a),new THREE.Color(0xf5ecd9));
+  enemy =createFighter('enemy', new THREE.Color(0xb32632),new THREE.Color(0x241115));
+  scene.add(player.root,enemy.root);
+  resetMatch(); bindInput();
+  requestAnimationFrame(loop);
+  const playBtn=$('#playBtn'), boot=$('#bootStatus');
+  if(playBtn){playBtn.disabled=false;playBtn.textContent='ENTER DUEL';}
+  if(boot){boot.textContent='CORE READY';}
+}
+function onResize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)}
+
+function buildArena(){
+  scene.add(new THREE.HemisphereLight(0xbec7d1,0x1c1712,1.2));
+  const key=new THREE.DirectionalLight(0xffe5bd,2.7); key.position.set(6,16,9); key.castShadow=true;
+  key.shadow.mapSize.set(1024,1024);
+  key.shadow.camera.left=-30;key.shadow.camera.right=30;key.shadow.camera.top=30;key.shadow.camera.bottom=-30;
+  scene.add(key);
+  const rim=new THREE.DirectionalLight(0x6f87a6,1.2); rim.position.set(-11,8,-13); scene.add(rim);
+
+  const floorMat=new THREE.MeshStandardMaterial({color:0x191a1b,roughness:.8,metalness:.45});
+  const floor=new THREE.Mesh(new THREE.CylinderGeometry(arenaRadius,arenaRadius,1.0,64),floorMat);
+  floor.position.y=-.52; floor.receiveShadow=true; scene.add(floor);
+  const ringMat=new THREE.MeshStandardMaterial({color:0x504a40,metalness:.8,roughness:.4});
+  for(const r of [4.0,6.5,12.5,17.4]){const tor=new THREE.Mesh(new THREE.TorusGeometry(r,.055,6,128),ringMat);tor.rotation.x=Math.PI/2;tor.position.y=.015;scene.add(tor);}
+  const runeMat=new THREE.LineBasicMaterial({color:0x62594b,transparent:true,opacity:.45});
+  for(let i=0;i<8;i++){const a=i/8*TAU;const geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*3,.03,Math.sin(a)*3),new THREE.Vector3(Math.cos(a)*16,.03,Math.sin(a)*16)]);scene.add(new THREE.Line(geo,runeMat));}
+
+  const wallMat=new THREE.MeshStandardMaterial({color:0x202124,roughness:.72,metalness:.5});
+  for(let i=0;i<8;i++){
+    const a=i/8*TAU, x=Math.cos(a)*21.5, z=Math.sin(a)*21.5;
+    const g=new THREE.Group(); g.position.set(x,0,z); g.rotation.y=-a;
+    const base=new THREE.Mesh(new THREE.BoxGeometry(3.8,1.1,2.1),wallMat); base.position.y=.55;base.castShadow=true;base.receiveShadow=true;g.add(base);
+    const p=new THREE.Mesh(new THREE.BoxGeometry(1.7,8.5,1.5),wallMat);p.position.y=4.8;p.castShadow=true;g.add(p);
+    const cap=new THREE.Mesh(new THREE.ConeGeometry(1.7,2.2,4),new THREE.MeshStandardMaterial({color:0x3a3328,metalness:.65,roughness:.45}));cap.position.y=10;cap.rotation.y=Math.PI/4;g.add(cap);
+    g.userData.damage=0; g.userData.breakable=true; scene.add(g); cameraSolids.push(base,p);
+  }
+  const innerMat=new THREE.MeshStandardMaterial({color:0x111315,metalness:.68,roughness:.55});
+  for(let i=0;i<6;i++){
+    const a=i/6*TAU+Math.PI/6, x=Math.cos(a)*14.4, z=Math.sin(a)*14.4;
+    const ob=new THREE.Mesh(new THREE.BoxGeometry(1.8,3.4,1.8),innerMat);
+    ob.position.set(x,1.7,z);ob.rotation.y=-a;ob.castShadow=true;ob.userData.breakable=true;ob.userData.damage=0;
+    scene.add(ob);cameraSolids.push(ob);
+  }
+  const skyRing=new THREE.Mesh(new THREE.TorusGeometry(25,.22,6,80),new THREE.MeshBasicMaterial({color:0x40392f,transparent:true,opacity:.35}));
+  skyRing.rotation.x=Math.PI/2;skyRing.position.y=14;scene.add(skyRing);
+}
+
+/* ===========================================================================
+   FIGHTER RIG
+   A real hierarchy: root -> body -> hips -> chest -> shoulders -> elbows ->
+   hands -> weapon. Attacks drive hips, chest, shoulders, elbows AND legs, so
+   a swing is a whole body doing one thing instead of an arm rotating at the
+   waist. The blade lives in the hand, so it sweeps through the world.
+   ========================================================================= */
+function box(w,h,d,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.castShadow=true;return m}
+function cap(r,h,mat){const m=new THREE.Mesh(new THREE.CapsuleGeometry(r,h,5,10),mat);m.castShadow=true;return m}
+function cone(r,h,seg,mat){const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,seg),mat);m.castShadow=true;return m}
+
+function buildSword(mats,len,thick,glow){
+  const g=new THREE.Group();
+  const grip=new THREE.Mesh(new THREE.CylinderGeometry(.09*thick,.10*thick,.52*thick,10),mats.metal);
+  grip.rotation.x=Math.PI/2; grip.position.z=.16*thick; g.add(grip);
+  const guard=box(.62*thick,.14*thick,.20*thick,mats.metal); guard.position.z=-.12*thick; g.add(guard);
+  const blade=box(.15*thick,.30*thick,len,mats.blade); blade.position.z=-len*.5-.16*thick; g.add(blade);
+  const edge=new THREE.Mesh(new THREE.BoxGeometry(.05*thick,.32*thick,len*.98),new THREE.MeshBasicMaterial({color:glow}));
+  edge.position.set(.075*thick,0,-len*.5-.16*thick); g.add(edge);
+  const point=cone(.16*thick,.55*thick,4,mats.blade); point.rotation.x=-Math.PI/2; point.position.z=-len-.2*thick; g.add(point);
+  const tip=new THREE.Object3D(); tip.position.set(0,0,-len-.35*thick); g.add(tip);
+  const hilt=new THREE.Object3D(); hilt.position.set(0,0,-.1*thick); g.add(hilt);
+  g.userData={tip,hilt};
+  return g;
+}
+function buildGlaive(mats,glow){
+  const g=new THREE.Group();
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.075,.085,3.4,8),mats.metal);
+  shaft.rotation.x=Math.PI/2; shaft.position.z=-.9; g.add(shaft);
+  const head=box(.13,.40,1.9,mats.blade); head.position.z=-2.6; g.add(head);
+  const edge=new THREE.Mesh(new THREE.BoxGeometry(.05,.44,1.9),new THREE.MeshBasicMaterial({color:glow}));
+  edge.position.set(.06,0,-2.6); g.add(edge);
+  const crescent=new THREE.Mesh(new THREE.TorusGeometry(.52,.07,6,20,Math.PI*1.1),new THREE.MeshBasicMaterial({color:glow}));
+  crescent.position.set(0,0,-1.75); crescent.rotation.y=Math.PI/2; g.add(crescent);
+  const butt=cone(.16,.6,4,mats.metal); butt.rotation.x=Math.PI/2; butt.position.z=.85; g.add(butt);
+  const tip=new THREE.Object3D(); tip.position.set(0,0,-3.62); g.add(tip);
+  const hilt=new THREE.Object3D(); hilt.position.set(0,0,-.2); g.add(hilt);
+  g.userData={tip,hilt};
+  return g;
+}
+function buildGreatblade(mats,glow){
+  const g=new THREE.Group();
+  const grip=new THREE.Mesh(new THREE.CylinderGeometry(.16,.18,.9,10),mats.metal);
+  grip.rotation.x=Math.PI/2; grip.position.z=.3; g.add(grip);
+  const slab=box(.34,1.18,4.2,mats.blade); slab.position.z=-2.2; g.add(slab);
+  const core=new THREE.Mesh(new THREE.BoxGeometry(.40,.34,3.6),new THREE.MeshBasicMaterial({color:glow}));
+  core.position.z=-2.2; g.add(core);
+  for(const s of [-1,1]){
+    const fang=cone(.22,.9,4,mats.blade); fang.rotation.x=-Math.PI/2; fang.position.set(0,s*.62,-4.2); g.add(fang);
+  }
+  const brace=box(1.05,.30,.55,mats.metal); brace.position.z=-.25; g.add(brace);
+  const tip=new THREE.Object3D(); tip.position.set(0,0,-4.5); g.add(tip);
+  const hilt=new THREE.Object3D(); hilt.position.set(0,0,-.3); g.add(hilt);
+  g.userData={tip,hilt};
+  return g;
+}
+
+function createFighter(id,primary,secondary){
+  const mats={
+    suit  : new THREE.MeshStandardMaterial({color:id==='player'?0x25272c:0x261a1d,roughness:.62,metalness:.3}),
+    dark  : new THREE.MeshStandardMaterial({color:0x17181b,roughness:.7,metalness:.35}),
+    armor : new THREE.MeshStandardMaterial({color:primary,roughness:.38,metalness:.76}),
+    pale  : new THREE.MeshStandardMaterial({color:secondary,roughness:.55,metalness:.3}),
+    metal : new THREE.MeshStandardMaterial({color:0x7c786f,metalness:.9,roughness:.25}),
+    plate : new THREE.MeshStandardMaterial({color:id==='player'?0x3b3d44:0x3a2226,metalness:.72,roughness:.42}),
+    blade : new THREE.MeshStandardMaterial({color:0xc9c6bd,emissive:primary,emissiveIntensity:.7,metalness:.85,roughness:.16}),
+    energy: new THREE.MeshBasicMaterial({color:primary,transparent:true,opacity:.9})
+  };
+
+  const root=new THREE.Group();
+  const body=new THREE.Group(); root.add(body);
+
+  const hips=new THREE.Group(); hips.position.y=1.86; body.add(hips);
+  const pelvis=box(.86,.56,.60,mats.suit); hips.add(pelvis);
+
+  const legs={};
+  for(const side of ['L','R']){
+    const s=side==='L'?-1:1;
+    const leg=new THREE.Group(); leg.position.set(s*.33,-.14,0); hips.add(leg);
+    const thigh=cap(.20,.72,mats.dark); thigh.position.y=-.48; leg.add(thigh);
+    const knee=new THREE.Group(); knee.position.y=-.92; leg.add(knee);
+    const shin=cap(.165,.68,mats.dark); shin.position.y=-.42; knee.add(shin);
+    const foot=box(.36,.20,.74,mats.suit); foot.position.set(0,-.80,-.16); knee.add(foot);
+    legs[side]={leg,knee,thigh,shin,foot};
+  }
+
+  const chest=new THREE.Group(); chest.position.y=.24; hips.add(chest);
+  const torso=box(1.02,1.34,.66,mats.suit); torso.position.y=.62; chest.add(torso);
+  const collar=box(1.16,.26,.62,mats.dark); collar.position.y=1.24; chest.add(collar);
+  const head=new THREE.Group(); head.position.y=1.52; chest.add(head);
+  const skull=new THREE.Mesh(new THREE.SphereGeometry(.38,16,12),mats.pale); skull.scale.set(.92,1.12,.98); skull.castShadow=true; head.add(skull);
+  const visor=new THREE.Mesh(new THREE.BoxGeometry(.50,.14,.42),new THREE.MeshBasicMaterial({color:primary})); visor.position.set(0,.04,-.28); head.add(visor);
+
+  const arms={};
+  for(const side of ['L','R']){
+    const s=side==='L'?-1:1;
+    const sh=new THREE.Group(); sh.position.set(s*.72,1.06,0); chest.add(sh);
+    const upper=cap(.175,.50,mats.dark); upper.position.y=-.34; sh.add(upper);
+    const elbow=new THREE.Group(); elbow.position.y=-.68; sh.add(elbow);
+    const fore=cap(.155,.46,mats.armor); fore.position.y=-.32; elbow.add(fore);
+    const hand=new THREE.Group(); hand.position.y=-.64; elbow.add(hand);
+    const fist=box(.22,.24,.26,mats.pale); hand.add(fist);
+    arms[side]={sh,elbow,hand,upper,fore};
+  }
+
+  /* weapons: the silhouette changes with the form, so does the weapon */
+  const grip=new THREE.Group(); arms.R.hand.add(grip); grip.position.set(0,-.06,-.06);
+  const wSword=buildSword(mats,2.35,1.0,primary);
+  const wGlaive=buildGlaive(mats,primary);
+  const wGreat=buildGreatblade(mats,primary);
+  grip.add(wSword,wGlaive,wGreat);
+
+  /* ---------------- FORM II · ARMORED : mass, plates, pauldrons ---------- */
+  const gArmor=new THREE.Group(); body.add(gArmor);
+  const aChest=box(1.55,1.10,1.00,mats.armor); aChest.position.y=2.80; gArmor.add(aChest);
+  const aBack=box(1.20,.90,.52,mats.plate); aBack.position.set(0,2.95,.62); gArmor.add(aBack);
+  const aBelt=box(1.18,.40,.86,mats.plate); aBelt.position.y=1.80; gArmor.add(aBelt);
+  for(const s of [-1,1]){
+    const pauldron=box(.86,.72,1.06,mats.armor); pauldron.position.set(s*.98,3.16,0); pauldron.rotation.z=s*.18; gArmor.add(pauldron);
+    const spike=cone(.20,.60,4,mats.armor); spike.position.set(s*1.24,3.55,0); spike.rotation.z=s*.5; gArmor.add(spike);
+    const gaunt=box(.42,.70,.56,mats.plate); gaunt.position.set(s*.80,2.10,-.02); gArmor.add(gaunt);
+    const greave=box(.46,.86,.62,mats.plate); greave.position.set(s*.34,.78,-.04); gArmor.add(greave);
+  }
+  const helm=box(.62,.44,.70,mats.plate); helm.position.y=3.76; gArmor.add(helm);
+  const crest=box(.10,.50,.86,mats.armor); crest.position.y=4.06; gArmor.add(crest);
+
+  /* -------- FORM III · SIGNATURE : lean frame, halo, floating pylons ----- */
+  const gSig=new THREE.Group(); body.add(gSig);
+  const halo=new THREE.Mesh(new THREE.TorusGeometry(.98,.06,8,44),mats.energy); halo.position.set(0,3.80,1.32); halo.rotation.x=.95; gSig.add(halo);
+  const sigSpin=new THREE.Group(); sigSpin.position.set(0,3.25,1.25); gSig.add(sigSpin);
+  for(let i=0;i<4;i++){
+    const s=i<2?-1:1, k=i%2;
+    const pylon=box(.15,.22,1.45,mats.armor);
+    pylon.position.set(s*(1.20+k*.62),-.25+k*.62,.18+k*.30);
+    pylon.rotation.set(.22,s*(.42+k*.16),s*(.26+k*.14));
+    sigSpin.add(pylon);
+    const glowEdge=new THREE.Mesh(new THREE.BoxGeometry(.06,.26,1.35),mats.energy);
+    glowEdge.position.copy(pylon.position); glowEdge.rotation.copy(pylon.rotation); sigSpin.add(glowEdge);
+  }
+  for(const s of [-1,1]){
+    const fin=cone(.13,1.45,4,mats.armor); fin.position.set(s*.80,3.25,.52); fin.rotation.z=s*.62; fin.rotation.x=.30; gSig.add(fin);
+    const sash=box(.09,1.35,.34,mats.energy); sash.position.set(s*.56,1.75,.50); gSig.add(sash);
+  }
+  const diadem=new THREE.Mesh(new THREE.TorusGeometry(.44,.05,6,20),mats.energy); diadem.position.y=3.86; diadem.rotation.x=Math.PI/2; gSig.add(diadem);
+
+  /* ---- FORM IV · ASCENDED : wings, floating structures, altered gait ---- */
+  const gAsc=new THREE.Group(); body.add(gAsc);
+  for(const s of [-1,1]){
+    const wing=new THREE.Group();
+    wing.position.set(s*.78,3.20,.60);
+    wing.rotation.set(0,s*.58,s*.30);
+    gAsc.add(wing);
+    for(let i=0;i<4;i++){
+      const len=3.8-i*.62, a=1.05-i*.32;               // fan from up-back to back
+      const dir=new THREE.Vector3(0,Math.cos(a),Math.sin(a));
+      const feather=box(.15,.30,len,mats.armor);
+      feather.position.copy(dir).multiplyScalar(len*.5);
+      feather.rotation.x=a-Math.PI/2;
+      wing.add(feather);
+      const glowF=new THREE.Mesh(new THREE.BoxGeometry(.07,.34,len*.86),mats.energy);
+      glowF.position.copy(feather.position); glowF.rotation.copy(feather.rotation); wing.add(glowF);
+    }
+    const spur=cone(.20,1.35,4,mats.armor); spur.position.set(s*1.25,3.95,.35); spur.rotation.z=s*.75; spur.rotation.x=-.3; gAsc.add(spur);
+  }
+  const ascOrbit=new THREE.Group(); ascOrbit.position.y=2.6; gAsc.add(ascOrbit);
+  for(let i=0;i<5;i++){
+    const a=i/5*TAU; const orb=new THREE.Mesh(new THREE.OctahedronGeometry(.30),mats.energy);
+    orb.position.set(Math.cos(a)*2.1,Math.sin(a*1.7)*.8,Math.sin(a)*2.1); ascOrbit.add(orb);
+  }
+  const ascCrown=new THREE.Group(); ascCrown.position.y=4.0; gAsc.add(ascCrown);
+  for(let i=0;i<7;i++){const a=i/7*TAU;const sp=cone(.10,1.0,4,mats.energy);sp.position.set(Math.cos(a)*.5,.3,Math.sin(a)*.5);sp.rotation.z=Math.cos(a)*.45;sp.rotation.x=-Math.sin(a)*.45;ascCrown.add(sp)}
+  const trail=box(.5,2.6,.14,mats.energy); trail.position.set(0,1.9,.75); gAsc.add(trail);
+
+  /* ----- FORM V · FINAL : a different scale of being, war-rig silhouette -- */
+  const gFinal=new THREE.Group(); body.add(gFinal);
+  const coreBlock=box(1.95,1.65,1.35,mats.plate); coreBlock.position.y=2.80; gFinal.add(coreBlock);
+  const coreGlow=new THREE.Mesh(new THREE.SphereGeometry(.42,14,10),mats.energy); coreGlow.position.set(0,2.85,-.66); gFinal.add(coreGlow);
+  for(const s of [-1,1]){
+    const tower=box(1.05,1.85,1.35,mats.armor); tower.position.set(s*1.28,3.55,.05); tower.rotation.z=s*.12; gFinal.add(tower);
+    const stack=box(.34,1.9,.42,mats.plate); stack.position.set(s*1.42,4.65,.35); stack.rotation.z=s*.22; gFinal.add(stack);
+    const hipPlate=box(.78,1.25,.90,mats.plate); hipPlate.position.set(s*.72,1.55,0); gFinal.add(hipPlate);
+    const hoof=box(.62,.44,1.15,mats.plate); hoof.position.set(s*.36,.22,-.18); gFinal.add(hoof);
+    const horn=cone(.17,1.35,4,mats.armor); horn.position.set(s*.42,4.05,.05); horn.rotation.z=s*.42; gFinal.add(horn);
+  }
+  for(let i=0;i<7;i++){
+    const t=-.9+i*.3; const spine=cone(.16,1.7+Math.cos(t)*.5,4,mats.armor);
+    spine.position.set(Math.sin(t)*1.5,3.5+Math.cos(t)*1.1,1.05); spine.rotation.z=-Math.sin(t)*1.0; spine.rotation.x=-.5; gFinal.add(spine);
+  }
+  const aura=new THREE.Mesh(new THREE.SphereGeometry(2.4,20,14),new THREE.MeshBasicMaterial({color:primary,transparent:true,opacity:.06,side:THREE.BackSide}));
+  aura.position.y=2.4; gFinal.add(aura);
+
+  gArmor.visible=gSig.visible=gAsc.visible=gFinal.visible=false;
+  wGlaive.visible=wGreat.visible=false;
+
+  const f={
+    id,root,body,hips,chest,head,pelvis,torso,collar,grip,mats,primary,secondary,
+    legL:legs.L.leg,legR:legs.R.leg,kneeL:legs.L.knee,kneeR:legs.R.knee,
+    footL:legs.L.foot,footR:legs.R.foot,
+    shL:arms.L.sh,shR:arms.R.sh,elL:arms.L.elbow,elR:arms.R.elbow,handL:arms.L.hand,handR:arms.R.hand,
+    armParts:[arms.L,arms.R],legParts:[legs.L,legs.R],
+    gArmor,gSig,gAsc,gFinal,sigSpin,ascOrbit,ascCrown,aura,halo,
+    weapons:{sword:wSword,glaive:wGlaive,great:wGreat}, weapon:wSword,
+    hp:PHASE_HP[0],maxHp:PHASE_HP[0],hpGhost:PHASE_HP[0],energy:100,morph:0,form:0,phaseStartedAt:0,
+    state:'idle',stateT:0,attack:null,chain:null,step:0,attackHit:false,attackWhiff:false,buffer:null,bufferAt:0,
+    linked:false,attackYaw:0,attackDamp:.90,recoverUntil:0,
+    velocity:new THREE.Vector3(),moveDir:new THREE.Vector3(),facing:0,gait:0,gaitPhase:0,
+    prevVel:new THREE.Vector3(),accelWorld:new THREE.Vector3(),accelLocal:new THREE.Vector3(),
+    blocking:false,guardStart:0,parryUntil:0,dodgeUntil:0,invulnUntil:0,stunUntil:0,transformUntil:0,
+    stunChain:1,stunChainUntil:0,lastHitAt:0,whiffAt:0,
+    hitDir:1,hitPower:0,hitPose:null,hitPoseDur:.34,hitAmp:1,
+    dead:false,lastQ:0,hover:0,lastFootfall:0,
+    cur:null,prevTip:new THREE.Vector3(),bladeVel:new THREE.Vector3(),bladeSpeed:0,tipReady:false,
+    ai:{timer:0,mode:'neutral',strafe:1,react:0,reactRoll:0,reacting:false,combo:[],aggression:.55,
+        punish:0,pressure:0,nextMode:0,transformWait:0,wake:false,seenKey:null,pressUntil:0,
+        heavyBias:.30,evade:.30}
+  };
+  f.cur=Object.assign({},POSE_DEF);
+  setForm(f,0,true);
+  return f;
+}
+
+/* ===========================================================================
+   POSE SYSTEM
+   Every state (stance, run, guard, hit, attack step) writes the same pose
+   vocabulary, so transitions blend instead of snapping, and every attack can
+   move hips, chest, shoulders, elbows, legs and grip together.
+   ========================================================================= */
+/* Rotation conventions used by every pose below (three.js, default XYZ):
+     +X on body/chest/head = tilt BACKWARD,  -X = fold FORWARD
+     +Y on body/hips/chest = turn to the fighter's LEFT
+     +Z on body           = lean to the fighter's LEFT
+     +legX                = that leg swings FORWARD
+   `lPlant`/`rPlant` are how hard that foot is held flat to the ground: at 1
+   the ankle cancels the whole leg's pitch so the sole stays on the floor, at 0
+   the foot is free to point. That single channel is what makes planted feet,
+   toe-off and heel-strike readable instead of the feet swivelling in the air. */
+const POSE_DEF={
+  bodyX:0,bodyY:0,bodyZ:0,bodyLift:0,
+  hipsY:0,hipsX:0,hipsZ:0,hipsLift:0,
+  chestX:0,chestY:0,chestZ:0,
+  rSx:0,rSy:0,rSz:0,rE:0,
+  lSx:0,lSy:0,lSz:0,lE:0,
+  lLegX:0,lLegY:0,lLegZ:0,lKnee:0,lAnkle:0,lPlant:1,
+  rLegX:0,rLegY:0,rLegZ:0,rKnee:0,rAnkle:0,rPlant:1,
+  gripX:0,gripY:0,gripZ:0,headY:0,headX:0
+};
+const POSE_KEYS=Object.keys(POSE_DEF);
+/* Channels that carry the rotational power of a swing. Later forms scale
+   these up so a COLOSSAL cut covers visibly more ground than a BASE cut. */
+const SWING_KEYS=['bodyY','bodyZ','hipsY','chestY','rSz','lSz'];
+/* Channels that flip when a reaction is mirrored to the other side. */
+const LATERAL_KEYS=['bodyY','bodyZ','hipsY','hipsZ','chestY','chestZ','headY','lLegY','rLegY','lLegZ','rLegZ'];
+function pose(o){return o}
+/* Grip angles wrap: a swing can carry the wrist most of the way round the
+   circle, and interpolating those two numbers the long way would unwind the
+   sword instead of swinging it. These two channels are blended along the
+   shortest arc; every other channel moves less than half a turn, so linear
+   interpolation is already the shortest path for them. */
+const ANGLE_KEYS=['gripX','gripY'];
+function shortTo(from,to){return from+Math.atan2(Math.sin(to-from),Math.cos(to-from))}
+function samplePose(keys,t){
+  let a=keys[0],b=keys[keys.length-1];
+  if(t<=a.t)b=a; else if(t>=b.t)a=b;
+  else for(let i=0;i<keys.length-1;i++){ if(t>=keys[i].t&&t<=keys[i+1].t){a=keys[i];b=keys[i+1];break} }
+  const k=smooth(clamp((t-a.t)/Math.max(1e-4,b.t-a.t),0,1));
+  const out={};
+  for(const key of POSE_KEYS){
+    const av=a.p[key]!==undefined?a.p[key]:POSE_DEF[key];
+    let bv=b.p[key]!==undefined?b.p[key]:POSE_DEF[key];
+    if(ANGLE_KEYS.indexOf(key)>=0)bv=shortTo(av,bv);
+    out[key]=av+(bv-av)*k;
+  }
+  return out;
+}
+function blendPose(f,target,dt,rate){
+  const k=damp(rate,dt);
+  for(const key of POSE_KEYS){
+    let tv=target[key]!==undefined?target[key]:POSE_DEF[key];
+    if(ANGLE_KEYS.indexOf(key)>=0)tv=shortTo(f.cur[key],tv);
+    f.cur[key]=f.cur[key]+(tv-f.cur[key])*k;
+  }
+}
+function writeRig(f){
+  const c=f.cur;
+  // bodyY is a whole-body twist layered on top of facing: it is what lets a
+  // rotational strike carry the feet around instead of spinning only a torso
+  f.body.rotation.set(c.bodyX,c.bodyY,c.bodyZ);
+  f.body.position.y=c.bodyLift+f.hover;
+  f.hips.rotation.set(c.hipsX,c.hipsY,c.hipsZ);
+  f.hips.position.y=1.86+c.hipsLift;
+  f.chest.rotation.set(c.chestX,c.chestY,c.chestZ);
+  // head keeps looking at the rival even while the torso winds up
+  f.head.rotation.set(c.headX-c.chestX*.55,clamp(c.headY-(c.chestY+c.hipsY+c.bodyY)*.62,-1.1,1.1),0);
+  f.shR.rotation.set(c.rSx,c.rSy,c.rSz); f.elR.rotation.x=c.rE;
+  f.shL.rotation.set(c.lSx,c.lSy,c.lSz); f.elL.rotation.x=c.lE;
+  // legs carry their own yaw so the hips can rotate through a swing while the
+  // feet stay pointed where they were planted
+  f.legL.rotation.set(c.lLegX,c.lLegY,c.lLegZ); f.kneeL.rotation.x=c.lKnee;
+  f.legR.rotation.set(c.rLegX,c.rLegY,c.rLegZ); f.kneeR.rotation.x=c.rKnee;
+  // a planted foot cancels the pitch of the leg above it and stays on the floor
+  if(f.footL)f.footL.rotation.x=c.lAnkle-(c.lLegX+c.lKnee)*c.lPlant;
+  if(f.footR)f.footR.rotation.x=c.rAnkle-(c.rLegX+c.rKnee)*c.rPlant;
+  f.grip.rotation.set(c.gripX,c.gripY,c.gripZ);
+}
+
+/* Neutral duelling stance: bladed body, sword-side shoulder back, knees soft,
+   both feet planted flat and splayed, weight slightly forward. This is the
+   pose everything returns to, which is why neutral reads as "two fighters
+   squared up" instead of "two idle mannequins". */
+const STANCE=pose({
+  chestY:-.30,hipsY:-.12,bodyX:-.06,hipsLift:-.11,
+  rSx:.52,rSy:-.30,rSz:-.16,rE:1.18,
+  lSx:.42,lSy:.30,lSz:.22,lE:1.02,
+  lLegX:-.15,lLegY:-.17,lKnee:.30,lPlant:1,
+  rLegX:.17,rLegY:.21,rKnee:.34,rPlant:1,
+  gripX:-0.703,gripY:0.209
+});
+/* Guard drops the centre of mass: hips sink, knees load, both soles flat and
+   braced, shoulders stacked over a base that can absorb a hit. */
+const GUARD_POSE=pose({
+  chestY:.16,chestX:-.12,hipsY:.06,bodyX:-.16,hipsLift:-.34,
+  rSx:1.05,rSy:.02,rSz:-.26,rE:1.52,
+  lSx:1.14,lSy:.34,lSz:.30,lE:1.34,
+  lLegX:-.34,lLegY:-.30,lKnee:.66,lPlant:1,
+  rLegX:.30,rLegY:.34,rKnee:.64,rPlant:1,
+  gripX:-1.609,gripY:0.03,gripZ:-.5
+});
+/* ---- hit reactions, one per incoming attack vector -------------------- */
+/* horizontal cut: the torso is torn off its axis, the feet cross to catch it */
+const HIT_SLASH=pose({
+  chestX:.14,bodyX:.16,bodyZ:.28,bodyY:.34,chestY:.46,hipsY:.30,hipsLift:-.18,
+  rSx:.18,rSy:-.56,rSz:.48,rE:.80,lSx:.40,lSy:.58,lSz:.60,lE:1.26,
+  lLegX:.28,lLegY:.28,lKnee:.26,lPlant:.8,rLegX:-.30,rLegY:.36,rKnee:.46,rPlant:.5,
+  gripX:-1.45,gripY:-1.087,headX:.14,headY:.30
+});
+/* thrust: rearward compression — chest caves in, whole body driven back */
+const HIT_THRUST=pose({
+  chestX:-.34,bodyX:.36,chestY:.10,hipsY:.04,hipsLift:-.24,
+  rSx:.06,rSy:-.40,rSz:.34,rE:1.10,lSx:.24,lSy:.40,lSz:.46,lE:1.40,
+  lLegX:.54,lLegY:-.12,lKnee:.22,lPlant:.4,rLegX:.36,rLegY:.16,rKnee:.32,rPlant:.9,
+  gripX:-0.453,gripY:-0.452,headX:.34
+});
+/* overhead: downward collapse — knees buckle, spine folds, head drops */
+const HIT_CRUSH=pose({
+  chestX:-.50,bodyX:-.24,bodyLift:-.36,hipsLift:-.66,chestY:.08,
+  rSx:.10,rSy:-.30,rSz:.22,rE:1.35,lSx:.22,lSy:.28,lSz:.30,lE:1.45,
+  lLegX:-.30,lKnee:1.12,lPlant:1,rLegX:-.22,rKnee:1.18,rPlant:1,
+  gripX:-0.764,gripY:-0.837,headX:-.52
+});
+/* big heavy: major rotation, hips torn around, feet leaving the line */
+const HIT_HEAVY=pose({
+  chestX:.22,bodyX:.38,bodyZ:.32,bodyY:.72,chestY:.60,hipsY:.52,hipsLift:-.32,bodyLift:.12,
+  rSx:-.22,rSy:-.88,rSz:.84,rE:.50,lSx:.28,lSy:.98,lSz:.98,lE:1.02,
+  lLegX:.56,lLegY:.42,lKnee:.34,lPlant:.3,rLegX:-.54,rLegY:.54,rKnee:.68,rPlant:.2,
+  gripX:-2.461,gripY:-0.433,headX:.34,headY:.44
+});
+/* poise held: the hit lands, the body barely gives — what a much heavier form
+   shows when a much lighter one connects */
+const HIT_FLINCH=pose({
+  chestX:.10,chestY:-.16,bodyZ:.07,hipsLift:-.17,
+  rSx:.44,rSy:-.36,rSz:-.06,rE:1.24,lSx:.46,lSy:.36,lSz:.30,lE:1.10,
+  lLegX:-.19,lLegY:-.19,lKnee:.38,lPlant:1,rLegX:.21,rLegY:.23,rKnee:.42,rPlant:1,
+  gripX:-0.897,gripY:0.032,headX:.08
+});
+const HIT_LIGHT=HIT_SLASH;   // legacy alias
+const DEAD_POSE=pose({
+  bodyX:-.9,bodyLift:-1.2,chestX:-.4,hipsLift:-.6,
+  rSx:-.4,rSy:-.6,rSz:.7,rE:.3,lSx:-.35,lSy:.6,lSz:.7,lE:.3,
+  lLegX:.7,lKnee:.9,lPlant:.2,rLegX:.5,rKnee:1.1,rPlant:.2
+});
+/* transforming is a planted, braced act: feet set wide, knees loaded, the arch
+   driven from a base that is holding the ground — not a floating pirouette */
+const TRANSFORM_POSE=pose({
+  bodyX:.26,bodyLift:.35,chestX:.30,hipsLift:-.04,headX:.38,
+  rSx:-.55,rSy:-.35,rSz:.95,rE:.35,lSx:-.55,lSy:.35,lSz:-.95,lE:.35,
+  lLegX:.16,lLegY:-.38,lKnee:.74,lPlant:1,rLegX:.14,rLegY:.42,rKnee:.72,rPlant:1,
+  gripX:1.071,gripY:-0.911
+});
+const POWER_POSE=pose({
+  chestX:-.18,chestY:-.18,hipsY:-.10,bodyX:-.10,hipsLift:-.28,
+  rSx:1.35,rSy:.10,rSz:.05,rE:.22,lSx:1.20,lSy:.40,lSz:.30,lE:.90,
+  lLegX:.28,lLegY:-.26,lKnee:.40,lPlant:1,rLegX:-.26,rLegY:.30,rKnee:.58,rPlant:1,
+  gripX:-0.902,gripY:0.189
+});
+/* Where a committed miss leaves you: past your own base, weapon low, too far
+   over the front foot to do anything about what comes next. */
+const RECOVER_POSE=pose({
+  chestX:-.30,bodyX:-.24,chestY:.10,hipsLift:-.42,
+  rSx:.30,rSy:.18,rSz:-.08,rE:.70,lSx:.44,lSy:-.06,lSz:.26,lE:1.10,
+  lLegX:.42,lLegY:-.14,lKnee:.56,lPlant:1,rLegX:-.32,rLegY:.32,rKnee:.52,rPlant:.55,
+  gripX:-0.887,gripY:-0.607,headX:-.14
+});
+
+/* ===========================================================================
+   FORMS — silhouette first. Each form swaps the attachment set, the weapon,
+   and the proportions of the base body, so you can name the form from the
+   outline alone.
+   ========================================================================= */
+const FORM_BUILD=[
+  {arm:[1.00,1.00],leg:[1.00,1.00],torso:[1.00,1.00,1.00],head:1.00,weapon:'sword',wScale:1.00,hover:0.00},
+  {arm:[1.48,1.06],leg:[1.40,1.00],torso:[1.34,1.04,1.32],head:1.07,weapon:'sword',wScale:1.25,hover:0.00},
+  {arm:[0.88,1.14],leg:[0.86,1.12],torso:[0.86,1.14,0.84],head:0.94,weapon:'glaive',wScale:1.12,hover:0.00},
+  {arm:[1.12,1.42],leg:[0.82,1.48],torso:[0.96,1.34,0.92],head:1.00,weapon:'glaive',wScale:1.14,hover:1.15},
+  {arm:[1.95,1.18],leg:[1.95,1.02],torso:[1.78,1.20,1.72],head:1.22,weapon:'great',wScale:1.04,hover:0.00}
+];
+function setForm(f,n,instant=false){
+  n=clamp(n,0,4); f.form=n;
+  const spec=FORMS[n], b=FORM_BUILD[n];
+  f.gArmor.visible=n===1;
+  f.gSig.visible  =n===2;
+  f.gAsc.visible  =n===3;
+  f.gFinal.visible=n===4;
+  for(const k in f.weapons) f.weapons[k].visible=false;
+  f.weapon=f.weapons[b.weapon]; f.weapon.visible=true; f.weapon.scale.setScalar(b.wScale);
+  for(const a of f.armParts){ a.upper.scale.set(b.arm[0],b.arm[1],b.arm[0]); a.fore.scale.set(b.arm[0],b.arm[1],b.arm[0]); }
+  for(const l of f.legParts){ l.thigh.scale.set(b.leg[0],b.leg[1],b.leg[0]); l.shin.scale.set(b.leg[0],b.leg[1],b.leg[0]); l.foot.scale.set(b.leg[0],1,b.leg[0]); }
+  f.torso.scale.set(b.torso[0],b.torso[1],b.torso[2]);
+  f.pelvis.scale.set(b.torso[0],1,b.torso[2]);
+  f.collar.scale.set(b.torso[0],1,1);
+  f.head.scale.setScalar(b.head);
+  f.mats.armor.emissive.copy(f.primary);
+  f.mats.armor.emissiveIntensity=[0,.05,.20,.32,.50][n];
+  f.mats.blade.emissiveIntensity=[.7,.8,1.0,1.2,1.5][n];
+  f.mats.energy.opacity=[.78,.82,.94,.96,1][n];
+  f.hoverTarget=b.hover;
+  if(instant){ f.body.scale.setScalar(spec.scale); f.hover=b.hover; }
+  if(f.id==='player'&&player) updateFormRail();
+}
+function updateFormRail(){document.querySelectorAll('.pip').forEach((p,i)=>{p.className='pip'+(i<player.form?' on':'')+(i===player.form?' current':'')})}
+
+/* ===========================================================================
+   COMBO CHAINS
+   LMB is one coherent physical light chain: slash, reverse slash, thrust,
+   strong finisher. RMB is a separate heavy chain: overhead, rotational power
+   cut, driving finisher. Each step ends near the start of the next, so the
+   chain flows as one movement instead of four disconnected swings.
+   ========================================================================= */
+/* Link poses. Each is BOTH the follow-through of the attack before it AND the
+   opening frame of the attack after it, so a chained string reads as one
+   continuous movement: the blade never rewinds to neutral between cuts. */
+const LINK_SLASH=pose({          // blade out past the left, torso open — a reverse cut starts here
+  chestY:.66,hipsY:.56,bodyY:.20,bodyZ:-.10,bodyX:-.06,hipsLift:-.14,
+  rSx:.86,rSy:1.06,rSz:.20,rE:.80,lSx:.28,lSy:-.38,lSz:.28,lE:1.04,gripX:-1.367,gripY:-0.36,
+  rLegX:-.36,rLegY:.40,rKnee:.24,rPlant:.55,lLegX:.44,lLegY:.02,lKnee:.32,lPlant:1
+});
+const LINK_REVERSE=pose({        // blade out past the right, shoulder loaded — a thrust chambers here
+  chestY:-.70,hipsY:-.56,bodyY:-.18,bodyZ:.12,bodyX:-.06,hipsLift:-.16,
+  rSx:.88,rSy:-1.04,rSz:-.22,rE:.86,lSx:.32,lSy:.42,lSz:.26,lE:1.06,gripX:-1.407,gripY:0.268,
+  lLegX:-.38,lLegY:-.40,lKnee:.24,lPlant:.55,rLegX:.46,rLegY:-.02,rKnee:.30,rPlant:1
+});
+const LINK_THRUST=pose({         // point still out front, weight forward — the finisher lifts from here
+  chestY:.08,hipsY:.18,chestX:-.16,bodyX:-.14,hipsLift:-.16,
+  rSx:1.18,rSy:.02,rSz:-.06,rE:.42,lSx:.36,lSy:-.26,lSz:.22,lE:.86,gripX:-1.056,gripY:-0.358,
+  lLegX:.32,lLegY:-.18,lKnee:.24,lPlant:1,rLegX:-.20,rLegY:.26,rKnee:.32,rPlant:.6
+});
+const LINK_OVER=pose({           // blade low after the cleave, hips still sunk — coiled to turn
+  chestX:-.30,chestY:-.10,hipsY:-.04,bodyX:-.12,hipsLift:-.44,
+  rSx:.52,rSy:-.10,rSz:-.14,rE:.62,lSx:.62,lSy:.04,lSz:.24,lE:.96,gripX:-1.296,gripY:0.221,
+  lLegX:.30,lLegY:-.26,lKnee:.62,lPlant:1,rLegX:-.16,rLegY:.30,rKnee:.54,rPlant:1
+});
+const LINK_ROT=pose({            // wound out at the end of the turn — chambers the drive
+  chestY:.52,hipsY:.52,bodyZ:-.10,bodyX:-.06,hipsLift:-.24,
+  rSx:.86,rSy:.96,rSz:.18,rE:.78,lSx:.34,lSy:-.40,lSz:.24,lE:1.02,gripX:-0.909,gripY:0.175,
+  rLegX:-.30,rLegY:.40,rKnee:.28,rPlant:.7,lLegX:.38,lLegY:.04,lKnee:.32,lPlant:1
+});
+/* Settle poses: only reached when a string is NOT continued. Tapping once ends
+   the swing properly; holding the button links out of the follow-through. */
+const SETTLE_L=pose({
+  chestY:.14,hipsY:.18,bodyY:.04,bodyX:-.06,hipsLift:-.12,
+  rSx:.72,rSy:.44,rSz:-.02,rE:1.00,lSx:.46,lSy:.18,lSz:.26,lE:1.04,gripX:-0.375,gripY:-0.773,
+  rLegX:-.12,rLegY:.24,rKnee:.32,rPlant:1,lLegX:.14,lLegY:-.15,lKnee:.30,lPlant:1
+});
+const SETTLE_R=pose({
+  chestY:-.26,hipsY:-.14,bodyY:-.04,bodyX:-.06,hipsLift:-.12,
+  rSx:.60,rSy:-.40,rSz:-.14,rE:1.10,lSx:.44,lSy:.28,lSz:.24,lE:1.02,gripX:-0.424,gripY:0.836,
+  rLegX:.16,rLegY:.21,rKnee:.34,rPlant:1,lLegX:-.14,lLegY:-.17,lKnee:.30,lPlant:1
+});
+
+/* Every attack is authored as the same physical sentence:
+     0     · start — the previous attack's follow-through when chained
+     wind  · load — weight onto the driving foot, weapon cocked, hips coiled
+     accel · the rear foot drives, hips fire first, the arm still trailing
+     hit   · contact, over a planted front foot, body already past the blade
+     follow· the blade travels THROUGH and well past where the target stood
+     link  · exactly where the next attack begins
+     1     · settle, only used when the string stops here
+   `drive` is authored root movement (spd forward, side lateral). `lag` is what
+   a whiff costs in recovery. `plant` damps sliding so the feet hold ground.
+   `spin` carries the whole body around for a true rotational strike. */
+const LIGHT_CHAIN=[
+  { name:'SLASH', dur:.46, hit:.52, dmg:52, kb:1.00, stop:.050, lag:.10, arc:'rl',
+    drive:{from:.30,to:.56,spd:4.6}, link:LINK_SLASH,
+    keys:[
+      {t:0,   p:{chestY:-.30,hipsY:-.12,bodyY:-.04,bodyX:-.06,hipsLift:-.11,rSx:.54,rSy:-.32,rSz:-.17,rE:1.16,lSx:.42,lSy:.30,lSz:.22,lE:1.02,gripX:-0.71,gripY:0.252,lLegX:-.15,lLegY:-.17,lKnee:.30,rLegX:.17,rLegY:.21,rKnee:.34}},
+      {t:.22, p:{chestY:-.86,hipsY:-.50,bodyY:-.20,bodyZ:.14,bodyX:.11,hipsLift:-.28,rSx:.16,rSy:-1.50,rSz:-.60,rE:1.88,lSx:.68,lSy:.72,lSz:.06,lE:1.44,gripX:-2.954,gripY:1.172,rLegX:.44,rLegY:-.10,rKnee:.58,rPlant:1,lLegX:-.36,lLegY:-.32,lKnee:.26,lPlant:.45,headY:.22}},
+      {t:.38, p:{chestY:-.34,hipsY:.06,bodyY:-.02,bodyZ:.05,bodyX:-.02,hipsLift:-.32,rSx:.74,rSy:-.60,rSz:-.36,rE:1.26,lSx:.52,lSy:.30,lSz:.18,lE:1.24,gripX:-1.654,gripY:-0.291,rLegX:.16,rLegY:.02,rKnee:.38,rAnkle:-.34,rPlant:.35,lLegX:-.04,lLegY:-.26,lKnee:.36,lPlant:.7}},
+      {t:.52, p:{chestY:.44,hipsY:.46,bodyY:.14,bodyX:-.14,bodyZ:-.05,hipsLift:-.16,rSx:1.32,rSy:.50,rSz:.12,rE:.34,lSx:.34,lSy:-.26,lSz:.38,lE:.94,gripX:-2,gripY:-0.728,rLegX:-.32,rLegY:.32,rKnee:.24,rPlant:.5,lLegX:.42,lLegY:-.06,lKnee:.28,lPlant:1}},
+      {t:.70, p:{chestY:.88,hipsY:.76,bodyY:.30,bodyZ:-.16,bodyX:-.10,hipsLift:-.10,rSx:1.00,rSy:1.44,rSz:.36,rE:.56,lSx:.24,lSy:-.50,lSz:.24,lE:1.02,gripX:-2.513,gripY:-0.204,rLegX:-.40,rLegY:.46,rKnee:.22,rPlant:.3,lLegX:.48,lLegY:.06,lKnee:.32,lPlant:1}},
+      {t:.82, p:LINK_SLASH},
+      {t:1,   p:SETTLE_L}
+    ]},
+  { name:'REVERSE', dur:.48, hit:.52, dmg:58, kb:1.08, stop:.050, lag:.11, arc:'lr',
+    drive:{from:.26,to:.58,spd:3.2,side:2.4}, link:LINK_REVERSE,
+    keys:[
+      {t:0,   p:LINK_SLASH},
+      {t:.22, p:{chestY:.92,hipsY:.72,bodyY:.26,bodyZ:-.16,bodyX:.10,hipsLift:-.28,rSx:.56,rSy:1.56,rSz:.40,rE:1.58,lSx:.54,lSy:-.46,lSz:.18,lE:1.30,gripX:2.946,gripY:-0.993,lLegX:.46,lLegY:.22,lKnee:.36,lPlant:1,rLegX:-.34,rLegY:.48,rKnee:.28,rPlant:.45,headY:-.20}},
+      {t:.38, p:{chestY:.30,hipsY:.10,bodyY:.08,bodyZ:-.05,bodyX:-.02,hipsLift:-.32,rSx:.80,rSy:.66,rSz:.18,rE:1.14,lSx:.46,lSy:-.10,lSz:.24,lE:1.16,gripX:-1.772,gripY:-0.032,lLegX:.16,lLegY:.06,lKnee:.38,lAnkle:-.30,lPlant:.35,rLegX:-.10,rLegY:.32,rKnee:.36,rPlant:.7}},
+      {t:.52, p:{chestY:-.56,hipsY:-.42,bodyY:-.14,bodyZ:.10,bodyX:-.14,hipsLift:-.16,rSx:1.34,rSy:-.62,rSz:-.16,rE:.32,lSx:.36,lSy:.34,lSz:.36,lE:.96,gripX:-2.173,gripY:0.71,lLegX:-.32,lLegY:-.30,lKnee:.26,lPlant:.5,rLegX:.42,rLegY:.06,rKnee:.28,rPlant:1}},
+      {t:.70, p:{chestY:-.92,hipsY:-.74,bodyY:-.28,bodyZ:.18,bodyX:-.10,hipsLift:-.10,rSx:1.04,rSy:-1.44,rSz:-.38,rE:.54,lSx:.28,lSy:.54,lSz:.22,lE:1.04,gripX:-2.581,gripY:0.147,lLegX:-.42,lLegY:-.46,lKnee:.22,lPlant:.3,rLegX:.50,rLegY:-.06,rKnee:.32,rPlant:1}},
+      {t:.82, p:LINK_REVERSE},
+      {t:1,   p:SETTLE_R}
+    ]},
+  { name:'THRUST', dur:.50, hit:.50, dmg:68, kb:1.20, stop:.060, lag:.13, arc:'th',
+    drive:{from:.24,to:.60,spd:11.0}, link:LINK_THRUST,
+    keys:[
+      {t:0,   p:LINK_REVERSE},
+      {t:.22, p:{chestY:-.86,hipsY:-.46,chestX:.12,bodyX:.14,bodyY:-.12,hipsLift:-.38,rSx:.28,rSy:-.66,rSz:-.26,rE:2.12,lSx:.62,lSy:.52,lSz:.14,lE:1.44,gripX:1.925,gripY:0.956,rLegX:.52,rLegY:-.06,rKnee:.70,rPlant:1,lLegX:-.30,lLegY:-.30,lKnee:.22,lPlant:.4}},
+      {t:.38, p:{chestY:-.32,hipsY:-.10,chestX:-.06,bodyX:-.12,hipsLift:-.30,rSx:.88,rSy:-.34,rSz:-.14,rE:1.30,lSx:.48,lSy:.26,lSz:.18,lE:1.12,gripX:-2.121,gripY:0.484,rLegX:.30,rKnee:.32,rAnkle:-.52,rPlant:.2,lLegX:.28,lLegY:-.22,lKnee:.42,lPlant:.5}},
+      {t:.52, p:{chestY:.16,hipsY:.24,chestX:-.20,bodyX:-.24,hipsLift:-.22,rSx:1.50,rSy:.10,rSz:.02,rE:.02,lSx:.28,lSy:-.44,lSz:.20,lE:.58,gripX:-1.092,gripY:-0.409,lLegX:.60,lLegY:-.10,lKnee:.14,lPlant:1,rLegX:-.46,rLegY:.16,rKnee:.18,rAnkle:-.40,rPlant:.15}},
+      {t:.70, p:{chestY:.24,hipsY:.34,chestX:-.24,bodyX:-.28,hipsLift:-.18,rSx:1.44,rSy:.22,rE:.10,lSx:.26,lSy:-.50,lE:.62,gripX:-1.108,gripY:-0.632,lLegX:.42,lKnee:.16,lPlant:1,rLegX:-.30,rLegY:.22,rKnee:.26,rPlant:.4}},
+      {t:.82, p:LINK_THRUST},
+      {t:1,   p:SETTLE_L}
+    ]},
+  { name:'FINISHER', dur:.66, hit:.54, dmg:100, kb:2.20, stop:.090, lag:.22, finisher:true, plant:.82, arc:'dg',
+    drive:{from:.30,to:.62,spd:7.8},
+    keys:[
+      {t:0,   p:LINK_THRUST},
+      {t:.24, p:{chestY:-.66,hipsY:-.30,bodyY:-.14,bodyX:.26,chestX:.16,hipsLift:.04,rSx:2.62,rSy:-.52,rSz:-.40,rE:.54,lSx:2.18,lSy:.14,lSz:.28,lE:.72,gripX:-2.353,gripY:-0.073,rLegX:.24,rLegY:-.08,rKnee:.36,rPlant:1,lLegX:-.36,lLegY:-.34,lKnee:.42,lPlant:.5}},
+      {t:.40, p:{chestY:-.16,hipsY:.06,bodyY:.02,bodyX:.02,chestX:-.04,hipsLift:-.16,rSx:1.70,rSy:-.10,rSz:-.22,rE:.34,lSx:1.30,lSy:-.02,lSz:.30,lE:.74,gripX:-1.194,gripY:-0.448,rLegX:.08,rKnee:.32,rAnkle:-.30,rPlant:.4,lLegX:-.06,lLegY:-.28,lKnee:.48,lPlant:.8}},
+      {t:.54, p:{chestY:.42,hipsY:.34,chestX:-.36,bodyX:-.22,bodyZ:-.14,hipsLift:-.44,rSx:.48,rSy:.46,rSz:.14,rE:.24,lSx:.50,lSy:-.24,lSz:.26,lE:.78,gripX:-0.579,gripY:-1.022,lLegX:.56,lLegY:.02,lKnee:.62,lPlant:1,rLegX:-.40,rLegY:.36,rKnee:.40,rPlant:1}},
+      {t:.72, p:{chestY:.70,hipsY:.54,chestX:-.46,bodyX:-.28,bodyZ:-.20,hipsLift:-.50,rSx:.24,rSy:.66,rSz:.24,rE:.34,lSx:.42,lSy:-.34,lE:.84,gripX:-1.679,gripY:-0.82,lLegX:.50,lLegY:.14,lKnee:.64,lPlant:1,rLegX:-.36,rLegY:.44,rKnee:.44,rPlant:1}},
+      {t:.86, p:{chestY:.34,hipsY:.28,chestX:-.26,bodyX:-.16,hipsLift:-.36,rSx:.44,rSy:.40,rE:.66,lSx:.44,lSy:-.10,lSz:.24,lE:.96,gripX:-0.812,gripY:-0.478,lLegX:.34,lKnee:.50,lPlant:1,rLegX:-.24,rKnee:.42,rPlant:1}},
+      {t:1,   p:SETTLE_L}
+    ]}
+];
+const HEAVY_CHAIN=[
+  { name:'OVERHEAD', dur:.70, hit:.54, dmg:94, kb:2.00, stop:.080, lag:.26, plant:.78, arc:'ov',
+    drive:{from:.32,to:.58,spd:5.4}, link:LINK_OVER,
+    keys:[
+      {t:0,   p:{chestY:-.28,hipsY:-.12,bodyX:-.06,hipsLift:-.11,rSx:.52,rSy:-.30,rSz:-.16,rE:1.18,lSx:.42,lSy:.30,lSz:.22,lE:1.02,gripX:-0.7,gripY:0.199,lLegX:-.15,lLegY:-.17,lKnee:.30,rLegX:.17,rLegY:.21,rKnee:.34}},
+      {t:.26, p:{chestY:-.36,bodyX:.34,chestX:.22,bodyY:-.08,hipsLift:.12,rSx:2.86,rSy:-.28,rSz:-.24,rE:.28,lSx:2.52,lSy:.16,lSz:.22,lE:.42,gripX:-1.699,gripY:-0.084,rLegX:.28,rLegY:-.06,rKnee:.32,rPlant:1,lLegX:-.34,lLegY:-.32,lKnee:.44,lPlant:.55,headX:.26}},
+      {t:.42, p:{chestY:-.12,bodyX:.06,chestX:.02,hipsLift:-.08,rSx:1.94,rSy:-.12,rSz:-.16,rE:.20,lSx:1.60,lSy:.06,lE:.52,gripX:-1.007,gripY:-0.018,rLegX:.10,rKnee:.30,rAnkle:-.28,rPlant:.45,lLegX:-.10,lLegY:-.28,lKnee:.52,lPlant:.85}},
+      {t:.54, p:{chestX:-.48,bodyX:-.26,chestY:.06,hipsY:.10,hipsLift:-.56,rSx:.44,rSy:.06,rSz:-.02,rE:.14,lSx:.64,lSy:-.14,lE:.68,gripX:-0.272,gripY:-0.218,lLegX:.56,lLegY:-.18,lKnee:.74,lPlant:1,rLegX:-.40,rLegY:.24,rKnee:.58,rPlant:1}},
+      {t:.72, p:{chestX:-.56,bodyX:-.32,chestY:.14,hipsY:.16,hipsLift:-.62,rSx:.22,rSy:.14,rE:.18,lSx:.58,lSy:-.22,lE:.72,gripX:-0.628,gripY:-0.347,lLegX:.48,lLegY:-.14,lKnee:.76,lPlant:1,rLegX:-.34,rLegY:.28,rKnee:.60,rPlant:1}},
+      {t:.84, p:LINK_OVER},
+      {t:1,   p:SETTLE_R}
+    ]},
+  { name:'ROTATION', dur:.86, hit:.62, win:[-.24,.20], dmg:112, kb:2.45, stop:.090, lag:.28, arc:'rl',
+    spin:TAU, drive:{from:.34,to:.70,spd:5.0}, link:LINK_ROT,
+    keys:[
+      {t:0,   p:LINK_OVER},
+      {t:.24, p:{chestY:-1.00,hipsY:-.56,bodyZ:.16,bodyX:.10,hipsLift:-.32,rSx:.50,rSy:-1.52,rSz:-.64,rE:1.60,lSx:.74,lSy:.84,lE:1.32,gripX:-2.438,gripY:0.596,rLegX:.46,rLegY:-.16,rKnee:.56,rPlant:1,lLegX:-.34,lLegY:-.30,lKnee:.26,lPlant:.5}},
+      {t:.42, p:{chestY:-.20,hipsY:.06,bodyZ:.02,bodyX:-.04,hipsLift:-.36,rSx:1.10,rSy:-.20,rSz:-.10,rE:.42,lSx:.44,lSy:-.06,lSz:.28,lE:.88,gripX:-1.199,gripY:-0.864,rLegX:.10,rLegY:.10,rKnee:.32,rAnkle:-.30,rPlant:.3,lLegX:.02,lLegY:-.20,lKnee:.36,lPlant:.8}},
+      {t:.62, p:{chestY:.62,hipsY:.70,bodyZ:-.14,bodyX:-.12,hipsLift:-.24,rSx:1.36,rSy:.82,rSz:.28,rE:.16,lSx:.40,lSy:-.54,lSz:.30,lE:.90,gripX:-2.34,gripY:-0.512,rLegX:-.40,rLegY:.36,rKnee:.26,rPlant:.6,lLegX:.48,lLegY:-.04,lKnee:.28,lPlant:1}},
+      {t:.78, p:{chestY:1.02,hipsY:1.02,bodyZ:-.20,bodyX:-.08,hipsLift:-.18,rSx:1.18,rSy:1.48,rSz:.38,rE:.44,lSx:.30,lSy:-.62,lE:1.00,gripX:-2.275,gripY:0.108,rLegX:-.32,rLegY:.48,rKnee:.24,rPlant:.45,lLegX:.34,lLegY:.10,lKnee:.32,lPlant:1}},
+      {t:.90, p:LINK_ROT},
+      {t:1,   p:SETTLE_L}
+    ]},
+  { name:'DRIVE', dur:.96, hit:.56, dmg:152, kb:3.40, stop:.125, lag:.40, finisher:true, plant:.84, arc:'th',
+    drive:{from:.36,to:.70,spd:14.0},
+    keys:[
+      {t:0,   p:LINK_ROT},
+      {t:.28, p:{chestY:-.86,hipsY:-.48,chestX:.18,bodyX:.16,hipsLift:-.52,rSx:.20,rSy:-.78,rSz:-.32,rE:2.14,lSx:.64,lSy:.54,lE:1.46,gripX:2.047,gripY:0.885,rLegX:.56,rLegY:-.10,rKnee:.78,rPlant:1,lLegX:-.32,lLegY:-.32,lKnee:.24,lPlant:.4}},
+      {t:.44, p:{chestY:-.30,hipsY:-.08,chestX:-.06,bodyX:-.14,hipsLift:-.40,rSx:.92,rSy:-.34,rSz:-.14,rE:1.24,lSx:.46,lSy:.24,lE:1.08,gripX:-2.043,gripY:0.426,rLegX:.34,rKnee:.36,rAnkle:-.56,rPlant:.15,lLegX:.32,lLegY:-.24,lKnee:.46,lPlant:.5}},
+      {t:.58, p:{chestY:.12,hipsY:.28,chestX:-.34,bodyX:-.26,hipsLift:-.28,rSx:1.56,rSy:.06,rE:.02,lSx:.32,lSy:-.48,lSz:.22,lE:.48,gripX:-1.023,gripY:-0.408,lLegX:.66,lLegY:-.10,lKnee:.16,lPlant:1,rLegX:-.50,rLegY:.18,rKnee:.20,rAnkle:-.42,rPlant:.15}},
+      {t:.76, p:{chestY:.22,hipsY:.36,chestX:-.42,bodyX:-.30,hipsLift:-.22,rSx:1.50,rSy:.20,rE:.08,lSx:.28,lSy:-.54,lE:.54,gripX:-0.971,gripY:-0.622,lLegX:.46,lKnee:.18,lPlant:1,rLegX:-.32,rLegY:.26,rKnee:.28,rPlant:.5}},
+      {t:.88, p:{chestY:.06,chestX:-.24,bodyX:-.16,hipsLift:-.30,rSx:1.06,rSy:.02,rE:.46,lSx:.38,lSy:-.20,lSz:.22,lE:.88,gripX:-0.854,gripY:-0.15,lLegX:.32,lKnee:.32,lPlant:1,rLegX:-.18,rKnee:.36,rPlant:1}},
+      {t:1,   p:SETTLE_L}
+    ]}
+];
+function chainOf(type){return type==='heavy'?HEAVY_CHAIN:LIGHT_CHAIN}
+/* Later forms swing bigger: the rotational channels of an authored pose are
+   amplified around the neutral stance, so a COLOSSAL cut sweeps visibly more
+   ground than the same authored cut does on BASE. */
+function scaleSwing(p,k){
+  if(k===1)return p;
+  const o={};
+  for(const key of POSE_KEYS)o[key]=p[key]!==undefined?p[key]:POSE_DEF[key];
+  for(const key of SWING_KEYS){
+    const base=STANCE[key]!==undefined?STANCE[key]:0;
+    o[key]=base+(o[key]-base)*k;
+  }
+  return o;
+}
+
+/* ===========================================================================
+   LOCOMOTION
+   Movement direction and body facing are two separate systems. The gait is
+   built from the LOCAL velocity, so a fighter strafing right while facing the
+   rival actually side-steps instead of moonwalking.
+   ========================================================================= */
+function localVelocity(f){
+  const v=f.velocity.clone(); v.y=0;
+  const c=Math.cos(-f.facing), s=Math.sin(-f.facing);
+  return new THREE.Vector3(v.x*c-v.z*s,0,v.x*s+v.z*c); // z<0 = forward, x>0 = fighter's right
+}
+/* LOCOMOTION — a real gait cycle instead of a sine wave.
+   Each leg runs a phase: a STANCE half where the foot is planted and sweeps
+   backwards through the body at a constant rate, and a SWING half where it
+   lifts, folds and reaches ahead again. The step rate is then solved from the
+   speed the body is ACTUALLY travelling, so a planted foot holds its spot on
+   the floor instead of sliding over it. That is what removes the skating, and
+   it is why the huge forms take huge slow strides and the light ones take
+   quick ones without either being hand-timed. */
+const GAIT_DUTY=.62;                       // fraction of the cycle a foot owns the ground
+const GAIT_HANG=0.06;                      // the ankle hangs this far forward of the hip axis
+const GAIT_R=1.68;                         // hip-to-ankle radius with the stance knee bent in
+function legCycle(ph,A){
+  ph-=Math.floor(ph);
+  if(ph<GAIT_DUTY){                        // planted: sweeping back at ground speed
+    const u=ph/GAIT_DUTY;
+    // the ankle swings on an arc, so a linear ANGLE would still slide. Sweeping
+    // the arc's chord linearly instead is what actually pins the foot down.
+    const s=Math.sin(A+GAIT_HANG);
+    const ang=Math.asin(clamp(s-2*s*u,-1,1))-GAIT_HANG;
+    return {ang,lift:0,plant:1,toe:Math.max(0,u-.72)/.28};
+  }
+  const u=(ph-GAIT_DUTY)/(1-GAIT_DUTY);    // airborne: fold, carry, reach
+  return {ang:-A+2*A*smooth(u),lift:Math.sin(u*Math.PI),plant:0,toe:0};
+}
+function locomotionPose(f,dt){
+  const spec=FORMS[f.form];
+  const lv=localVelocity(f), sp=Math.hypot(lv.x,lv.z);
+  const norm=clamp(sp/spec.move,0,1.35);
+  const fwd=sp>.05?-lv.z/sp:0, side=sp>.05?lv.x/sp:0;
+  const glide=(FORM_BUILD[f.form].hover||0)>0;   // ASCENDED carries, it does not walk
+
+  const legLen=GAIT_R*spec.scale;
+  const back=clamp(-fwd,0,1);
+  const amp=spec.stride*(glide?.48:1)*(1-back*.26)*Math.sqrt(clamp(norm,0,1.35));
+  // solve the step rate so the stance foot travels backwards at exactly the
+  // speed the body is travelling forwards
+  const reach=Math.sin(amp+GAIT_HANG)-Math.sin(-amp+GAIT_HANG);   // chord the foot actually covers
+  const rate=(amp>.02&&sp>.15)?GAIT_DUTY*sp/Math.max(.05,reach*legLen):0;
+  const moving=rate>0;
+  f.gait+=dt*(moving?rate:0);
+  if(f.gait>1)f.gait-=Math.floor(f.gait);
+  f.idleT=(f.idleT||0)+dt*(moving?0:1);
+
+  const L=legCycle(f.gait,amp), R=legCycle(f.gait+.5,amp);
+  const bob=moving?(L.plant&&R.plant?1:0):0;
+
+  const p={};
+  for(const k of POSE_KEYS)p[k]=STANCE[k]!==undefined?STANCE[k]:POSE_DEF[k];
+
+  // the foot travels along the direction of travel, not just fore/aft, so a
+  // strafe is a real side-step and not a shuffle
+  p.lLegX=STANCE.lLegX+L.ang*fwd;  p.rLegX=STANCE.rLegX+R.ang*fwd;
+  p.lLegZ=L.ang*side;              p.rLegZ=R.ang*side;
+  // feet point where they are going; the torso above them does not have to
+  p.lLegY=STANCE.lLegY-side*.34*norm; p.rLegY=STANCE.rLegY-side*.34*norm;
+  // the knee folds to carry the foot over the ground, and gives on landing
+  p.lKnee=STANCE.lKnee+L.lift*(amp*1.9+.22)+back*norm*.22;
+  p.rKnee=STANCE.rKnee+R.lift*(amp*1.9+.22)+back*norm*.22;
+  // planted feet stay flat; airborne feet point; the trailing foot rolls off the toe
+  p.lPlant=L.plant?1:.12; p.rPlant=R.plant?1:.12;
+  p.lAnkle=-L.lift*.42-L.toe*.30; p.rAnkle=-R.lift*.42-R.toe*.30;
+
+  // body: hips travel with the step, chest counter-rotates to hold the rival
+  const stepDip=moving?(1-Math.abs(Math.cos(f.gait*TAU)))*.055*norm:0;
+  p.hipsLift=STANCE.hipsLift-stepDip-norm*.05-back*norm*.07+(bob?-.01:0);
+  p.hipsY=STANCE.hipsY+(L.ang-R.ang)*.11*fwd+side*.36*norm;
+  p.chestY=STANCE.chestY-(L.ang-R.ang)*.09*fwd-side*.32*norm;
+  p.headY=side*.20*norm;
+  if(!moving)p.hipsLift+=Math.sin(f.idleT*1.9)*.018;   // breathing keeps the stance alive
+
+  // lean: into the direction of travel, and into whatever the body is doing to
+  // its own velocity right now — driving leans forward, braking leans back
+  const leanK=1.15/Math.sqrt(spec.mass);
+  const aL=f.accelLocal||ZERO3;
+  const accF=clamp(-aL.z/26,-1,1), accS=clamp(aL.x/26,-1,1);
+  p.bodyX=STANCE.bodyX-fwd*norm*.14*leanK-accF*.20*leanK;
+  p.bodyZ=-side*norm*.13*leanK+accS*.17*leanK;
+
+  // arms swing against the legs; the sword arm swings less, it is holding a sword
+  p.rSx=STANCE.rSx+(R.ang-L.ang)*.16*norm; p.lSx=STANCE.lSx+(L.ang-R.ang)*.42*norm;
+  p.rE=STANCE.rE+Math.abs(L.ang)*.16*norm;
+
+  // footfall on the frame a foot actually lands
+  const contact=(L.plant?1:0)+(R.plant?1:0)*2;
+  if(moving&&contact!==f.gaitPhase&&contact)footfall(f);
+  f.gaitPhase=contact;
+  return p;
+}
+function footfall(f){
+  const now=performance.now(); if(now-f.lastFootfall<110)return; f.lastFootfall=now;
+  const s=FORMS[f.form].scale, m=FORMS[f.form].mass;
+  spawnDust(f.root.position.clone(),0x6b6355,3+Math.round(s*2),.7*s);
+  if(m>1.7)cam.shake=Math.max(cam.shake,.030*s);
+  if(f.form===4){spawnShockwave(f.root.position.clone(),f.primary,1.8);spawnDust(f.root.position.clone(),0x7f7464,8,1.4)}
+  sfx.step(m);
+}
+
+/* ===========================================================================
+   COMBAT
+   Contact is decided by where the blade actually is: the weapon's hilt->tip
+   segment is swept against the rival's body capsule during the strike window.
+   If the sword looks like it went through them, it hit them.
+   ========================================================================= */
+function forwardOf(f){return new THREE.Vector3(-Math.sin(f.facing),0,-Math.cos(f.facing))}
+function bodyRadius(f){return .80*FORMS[f.form].scale}
+function targetSegment(f){
+  const s=FORMS[f.form].scale, p=f.root.position;
+  return [new THREE.Vector3(p.x,p.y+.75*s+f.hover,p.z),new THREE.Vector3(p.x,p.y+3.45*s+f.hover,p.z)];
+}
+function segSegDist(p1,q1,p2,q2){
+  const d1=q1.clone().sub(p1), d2=q2.clone().sub(p2), r=p1.clone().sub(p2);
+  const a=d1.dot(d1), e=d2.dot(d2), fdot=d2.dot(r);
+  let s,t;
+  if(a<=1e-6&&e<=1e-6)return r.length();
+  if(a<=1e-6){s=0;t=clamp(fdot/e,0,1);}
+  else{
+    const c=d1.dot(r);
+    if(e<=1e-6){t=0;s=clamp(-c/a,0,1);}
+    else{
+      const b=d1.dot(d2), den=a*e-b*b;
+      s=den!==0?clamp((b*fdot-c*e)/den,0,1):0;
+      t=(b*s+fdot)/e;
+      if(t<0){t=0;s=clamp(-c/a,0,1);}else if(t>1){t=1;s=clamp((b-c)/a,0,1);}
+    }
+  }
+  const c1=p1.clone().addScaledVector(d1,s), c2=p2.clone().addScaledVector(d2,t);
+  return {dist:c1.distanceTo(c2),point:c1.lerp(c2,.5)};
+}
+function bladePoints(f){
+  const w=f.weapon.userData;
+  return [w.hilt.getWorldPosition(new THREE.Vector3()),w.tip.getWorldPosition(new THREE.Vector3())];
+}
+
+function canAct(f){const now=performance.now();return !f.dead&&now>f.stunUntil&&now>f.recoverUntil&&now>f.transformUntil&&f.state!=='dodge'&&f.state!=='power'}
+function rightOf(f){return new THREE.Vector3(Math.cos(f.facing),0,-Math.sin(f.facing))}
+function yawForward(y){return new THREE.Vector3(-Math.sin(y),0,-Math.cos(y))}
+function tryAttack(f,type){
+  const now=performance.now();
+  if(f.dead||intro>0)return;
+  if(f.state==='attack'){
+    const a=f.chain[f.step], t=f.stateT/attackDur(f,a);
+    if(t>.08){ f.buffer=type; f.bufferAt=now; }
+    return;
+  }
+  if(!canAct(f)||f.blocking)return;
+  startAttack(f,type,0,false);
+}
+function attackDur(f,a){return a.dur*FORMS[f.form].atk}
+/* Heavier forms spend longer in the anticipation and then snap; lighter ones
+   are even through the whole swing. The contact frame itself does not move. */
+function warpT(t,a,spec){
+  if(spec.wind===1||t>=a.hit)return t;
+  return a.hit*Math.pow(t/Math.max(.001,a.hit),spec.wind);
+}
+/* A much taller fighter swinging level would pass the blade straight over a
+   much shorter one's head, and a much shorter fighter would cut their shins.
+   The swing plane is pitched at the rival instead: hips, chest and shoulder all
+   take part, so the whole body aims rather than the wrist. */
+function aimPitch(f,t){
+  const hand=1.84*FORMS[f.form].scale+f.hover;
+  const aimY=2.10*FORMS[t.form].scale+t.hover;
+  const d=Math.max(1.2,f.root.position.distanceTo(t.root.position));
+  return clamp(Math.atan2(aimY-hand,d),-.95,.50);
+}
+function startAttack(f,type,step,linked){
+  f.state='attack'; f.attackType=type; f.chain=chainOf(type); f.step=clamp(step,0,f.chain.length-1);
+  f.stateT=0; f.attackHit=false; f.buffer=null; f.tipReady=false; f.attackWhiffFlag=false;
+  f.linked=!!linked; f.recoverUntil=0;
+  const a=f.chain[f.step], spec=FORMS[f.form];
+  const opp=f===player?enemy:player;
+  f.facing=targetYaw(f,opp); // commit the swing at the rival, never away from them
+  f.attackYaw=f.facing;
+  sfx.swing(spec.mass);
+  // a big windup eases the camera back so the whole arc stays inside the frame
+  cam.pullback=Math.max(cam.pullback,(a.finisher?.95:type==='heavy'?.68:.26)*Math.sqrt(spec.scale));
+  if(f===player)showCombo(f);
+}
+function advanceAttack(f,type,linked){
+  if(type===f.attackType){
+    if(f.step<f.chain.length-1) startAttack(f,type,f.step+1,linked);
+    else { endAttack(f); }
+  } else startAttack(f,type,0,linked);
+}
+function endAttack(f){
+  f.state='idle'; f.stateT=0; f.chain=null; f.attackType=null; f.buffer=null; f.linked=false;
+  if(f===player)hideCombo();
+}
+function updateAttack(f,dt,now){
+  const a=f.chain[f.step], spec=FORMS[f.form];
+  const dur=attackDur(f,a), t=clamp(f.stateT/dur,0,1);
+  f.stateT+=dt;
+  const opp=f===player?enemy:player;
+
+  /* COMMITMENT. The rival is tracked through the windup and then the aim is
+     locked: after that the swing goes where it was sent. If they step off the
+     line, it misses — fighters are never magnetised together. */
+  const commit=a.hit-.14;
+  if(a.spin){
+    // the turn completes just BEFORE the contact frame, so the fighter comes
+    // back round onto the rival with the blade whipping across the front
+    const s=smooth(clamp((t-.06)/.52,0,1));
+    f.facing=f.attackYaw+a.spin*s;
+    f.root.rotation.y=f.facing;
+  } else if(t<commit){
+    faceSmooth(f,opp,dt,17*spec.turn);
+  } else {
+    f.root.rotation.y=f.facing;
+  }
+
+  let target=samplePose(a.keys,warpT(t,a,spec));
+  if(spec.swing!==1)target=scaleSwing(target,spec.swing);
+  const aim=aimPitch(f,opp);
+  if(Math.abs(aim)>.04){
+    target.bodyX+=aim*.50; target.chestX+=aim*.34;
+    target.rSx+=aim*.75; target.lSx+=aim*.55;
+    target.headX-=aim*.30;
+  }
+  // a chained attack eases out of the pose it inherited instead of snapping to it
+  blendPose(f,target,dt,(f.linked&&t<.20)?20:42);
+
+  // authored root movement: a step, a weight transfer, a lunge — not a magnet
+  const d=a.drive;
+  if(t>=d.from&&t<=d.to){
+    const k=Math.sin((t-d.from)/Math.max(.01,d.to-d.from)*Math.PI);
+    const gap=f.root.position.distanceTo(opp.root.position)-(bodyRadius(f)+bodyRadius(opp));
+    const brake=clamp(gap*.9+.32,0,1); // only bleeds off when the bodies actually touch
+    const scaleK=Math.sqrt(spec.scale);
+    const dir=a.spin?yawForward(f.attackYaw):forwardOf(f);
+    const step=dir.multiplyScalar(d.spd*scaleK*k*brake);
+    if(d.side)step.addScaledVector(rightOf(f),d.side*scaleK*k);
+    f.velocity.lerp(step,damp(18,dt));
+  } else if(a.plant){
+    f.velocity.multiplyScalar(Math.pow(a.plant,dt*60)); // planted: the feet hold the ground
+  }
+  f.attackDamp=a.plant?.82:.90;
+
+  // push this frame's pose into the rig first, so the blade test reads the
+  // sword where it is right now instead of one frame behind
+  writeRig(f); f.root.updateMatrixWorld(true);
+  const tipNow=f.weapon.userData.tip.getWorldPosition(new THREE.Vector3());
+  if(f.tipReady){
+    f.bladeVel.copy(tipNow).sub(f.prevTip);
+    f.bladeSpeed=f.bladeVel.length()/Math.max(dt,1e-4);
+    if(t>.14&&t<.92)spawnBladeTrailSegment(f.prevTip,tipNow,f.primary,.72+spec.scale*.18);
+  }
+
+  // strike window: swept blade contact, widened for the slowest, widest swings
+  const w=a.win||ATTACK_WINDOW;
+  const winA=a.hit+w[0], winB=a.hit+w[1];
+  if(t>=winA&&t<=winB&&!f.attackHit) resolveContact(f,a,now);
+  if(t>=winB&&!f.attackHit&&!f.attackWhiffFlag){
+    f.attackWhiffFlag=true; f.whiffAt=now; sfx.whiff();
+    // a committed miss is punishable: you ride out the rest of the swing and
+    // then stay open on top of it, for longer the bigger the swing was
+    f.recoverUntil=now+(dur-f.stateT)*1000+a.lag*1000*spec.recov;
+  }
+
+  // holding the button rides the whole string; tapping still plays one attack
+  if(f===player&&!f.buffer&&t>.14){
+    if(f.attackType==='light'&&keys.Mouse0)f.buffer='light';
+    if(f.attackType==='heavy'&&keys.Mouse2)f.buffer='heavy';
+  }
+  /* The link happens out of the FOLLOW-THROUGH, never out of the contact frame,
+     so chaining never cuts a swing short — attack N's finish IS attack N+1's
+     start. SIGNATURE links earliest; the heavy forms link latest. */
+  // a whiff cannot be chained out of: that is what makes a committed miss cost
+  // something instead of vanishing into the next swing
+  const canCancel=f.attackHit&&t>a.hit+.02;
+  const linkAt=clamp((a.spin?.88:.80)-spec.fluid,.66,.94);
+  if(f.buffer&&t>=linkAt&&canCancel){ const b=f.buffer; f.attackWhiffFlag=false; advanceAttack(f,b,true); return; }
+  if(f.stateT>=dur){
+    const whiffed=f.attackWhiffFlag; f.attackWhiffFlag=false;
+    if(f.buffer&&!whiffed){const b=f.buffer;advanceAttack(f,b,true);} else endAttack(f);
+  }
+}
+function resolveContact(f,a,now){
+  const target=f===player?enemy:player;
+  if(target.dead)return;
+  const spec=FORMS[f.form];
+  const [h,tip]=bladePoints(f);
+  const [tA,tB]=targetSegment(target);
+  // attack coverage: a bigger form's edge owns more space around itself
+  const radius=bodyRadius(target)+.30*spec.scale*spec.cover;
+  let contact=null;
+  const hit=segSegDist(h,tip,tA,tB);
+  if(hit.dist<=radius) contact=hit.point;
+  if(!contact&&f.tipReady){ // fast swings can skip past a body between frames
+    const swept=segSegDist(f.prevTip,tip,tA,tB);
+    if(swept.dist<=radius) contact=swept.point;
+  }
+  // no blade, no hit. A swing that goes where they used to be is a whiff.
+  if(!contact)return;
+  f.attackHit=true;
+  // both blades live in the same window -> clash
+  if(target.state==='attack'){
+    const ta=target.chain[target.step], tt=target.stateT/attackDur(target,ta);
+    const tw=ta.win||ATTACK_WINDOW;
+    if(!target.attackHit&&tt>=ta.hit+tw[0]-.02&&tt<=ta.hit+tw[1]){ clash(f,target,contact); return; }
+  }
+  if(now<target.invulnUntil){
+    spawnBurst(contact,0xffffff,10,3,.5); sfx.whiff(); target.ai.wake=true;
+    showStatus(target===player?'EVADE':'RIVAL EVADES'); return;
+  }
+  dealHit(f,target,a,contact);
+}
+
+/* Which way the body gives is decided by what hit it, not by a single generic
+   flinch: a cut rotates you, a thrust folds you backwards, an overhead drops
+   you, and a form with enough poise barely moves at all. */
+function reactionFor(arc,heavy,flinch){
+  if(flinch)return HIT_FLINCH;
+  if(heavy)return HIT_HEAVY;
+  if(arc==='th')return HIT_THRUST;
+  if(arc==='ov'||arc==='dg')return HIT_CRUSH;
+  return HIT_SLASH;
+}
+function dealHit(attacker,target,a,contact){
+  const now=performance.now();
+  const A=FORMS[attacker.form], D=FORMS[target.form];
+  const heavy=a.dmg>=90||!!a.finisher;
+  const dv=target.root.position.clone().sub(attacker.root.position).setY(0).normalize();
+
+  /* Where the blow pushes: mostly along the blade's own travel, pulled back
+     toward the line between the fighters so nothing gets shoved sideways
+     forever. A horizontal cut throws you across; a thrust drives you straight
+     back. Blade speed at the moment of contact scales how hard it all lands. */
+  const bd=attacker.bladeVel?attacker.bladeVel.clone().setY(0):new THREE.Vector3();
+  const bladeDir=bd.lengthSq()>1e-5?bd.normalize():dv.clone();
+  const kbDir=dv.clone().multiplyScalar(.55).addScaledVector(bladeDir,.85);
+  if(kbDir.lengthSq()<1e-5)kbDir.copy(dv); else kbDir.normalize();
+  const ref=9.5*Math.sqrt(A.scale);
+  const velK=clamp((attacker.bladeSpeed||ref)/ref,.70,1.45);
+  const dmgVelK=1+(velK-1)*.35;
+  const guardFacing=forwardOf(target).dot(dv)<-.25;
+
+  if(target.blocking&&guardFacing){
+    if(now<=target.parryUntil){ parry(target,attacker,contact); return; }
+    // guard strength decides how much gets through and whether the guard holds
+    const broken=(a.kb*A.kbOut)>(D.guard*2.15);
+    const dmg=a.dmg*A.dmg*dmgVelK*((broken?.62:.26)/D.guard);
+    target.hp=clamp(target.hp-dmg,0,target.maxHp);
+    target.velocity.addScaledVector(dv,clamp((1.6+a.kb)*A.kbOut/D.guard,0,9));
+    attacker.velocity.addScaledVector(dv,-clamp((2.0+a.kb*.6)*D.guard/A.kbOut,0,7));
+    target.morph=clamp(target.morph+dmg/target.maxHp*175,0,100);
+    target.ai.wake=true;
+    if(broken){
+      target.blocking=false;
+      target.state='hit'; target.stateT=0; target.hitPose=HIT_HEAVY; target.hitPoseDur=.5;
+      target.hitAmp=clamp(1/D.poise,.3,1); target.hitPower=1;
+      target.hitDir=Math.sign(forwardOf(target).clone().cross(bladeDir).y)||1;
+      target.stunUntil=now+420*clamp(1/D.poise,.3,1);
+      hitFreeze=Math.max(hitFreeze,.085); cam.shake=Math.max(cam.shake,.24);
+      spawnBurst(contact,attacker.primary,26,8,1.0,bladeDir); spawnRing(contact,0xffffff,2.2);
+      sfx.clash(); showStatus(target===player?'GUARD BROKEN':'RIVAL GUARD BROKEN');
+    } else {
+      target.stunUntil=now+90;
+      attacker.buffer=null; attacker.state='hit'; attacker.stateT=0; attacker.hitPower=0;
+      attacker.hitPose=HIT_FLINCH; attacker.hitPoseDur=.28; attacker.hitAmp=1;
+      attacker.hitDir=-(target.hitDir||1);
+      attacker.stunUntil=Math.max(attacker.stunUntil,now+(heavy?200:140));
+      hitFreeze=Math.max(hitFreeze,.035); cam.shake=Math.max(cam.shake,.07);
+      spawnBurst(contact,0xfff3cf,14,5,.6,bladeDir); spawnRing(contact,0xffffff,1.1);
+      sfx.block(); showStatus(target===player?'BLOCK':'RIVAL BLOCKS');
+    }
+    updateHUD(); return;
+  }
+
+  // repeated hits stun less and push further, so nobody gets juggled forever
+  if(now<target.stunChainUntil)target.stunChain=(target.stunChain||1)+1; else target.stunChain=1;
+  const chainK=Math.max(.45,1-.15*(target.stunChain-1));
+  const kbK=1+.16*(target.stunChain-1);
+
+  const dmg=a.dmg*A.dmg*dmgVelK;
+  target.hp=clamp(target.hp-dmg,0,target.maxHp);
+  /* Morph is measured as a FRACTION of the phase it is being cut out of rather
+     than as raw damage, so the meter fills over the same share of a health bar
+     whether that bar is 400 or 1350. The coefficients are V0.5's .30 and .34
+     re-expressed against its 350 HP opening phase, so the timing of when a
+     transformation becomes available is unchanged — which is what keeps the
+     delayed-transformation gamble intact at every point on the power curve. */
+  attacker.morph=clamp(attacker.morph+dmg/target.maxHp*105,0,100);
+  target.morph=clamp(target.morph+dmg/target.maxHp*119,0,100);
+
+  /* Stagger resistance. A much lighter form still takes its damage off a much
+     heavier one — it just does not get to move it. */
+  const poiseK=clamp(1/D.poise,.24,1);
+  const outmatched=A.tier<D.tier*.62;
+  const flinchOnly=outmatched&&!a.finisher&&!heavy;
+
+  const force=(2.2+a.kb*2.7)*A.kbOut*(0.55+A.mass*.30)*D.resist*kbK*velK*(flinchOnly?.35:1);
+  target.velocity.addScaledVector(kbDir,force);
+  attacker.velocity.addScaledVector(dv,.9); // follow-through carries the attacker in too
+  if(D.tier>A.tier*1.6&&!a.finisher) attacker.velocity.addScaledVector(dv,-1.9); // bouncing off a wall of a thing
+  target.buffer=null; target.state='hit'; target.stateT=0;
+  target.stunUntil=now+(heavy?300+a.kb*70:165+a.kb*50)*(a.finisher?1.25:1)*chainK*poiseK;
+  target.stunChainUntil=target.stunUntil+520;
+  target.ai.wake=true; target.lastHitAt=now;
+  attacker.ai.pressUntil=now+1300; // landing a hit invites you to keep going
+  target.hitPower=heavy?1:0;
+  target.hitPose=reactionFor(a.arc,heavy,flinchOnly);
+  target.hitPoseDur=flinchOnly?.24:(heavy?.58:.36);
+  target.hitAmp=flinchOnly?.75:poiseK;
+  target.hitDir=Math.sign(forwardOf(target).clone().cross(bladeDir).y)||1;
+
+  const stop=a.stop*(1+A.mass*.22)*velK*(flinchOnly?.6:1);
+  hitFreeze=Math.max(hitFreeze,stop);
+  cam.shake=Math.max(cam.shake,(heavy?.26:.13)*(0.7+A.mass*.3)*velK);
+  cam.pullback=Math.max(cam.pullback,heavy?1.5:.6);
+  // sparks fly off the contact point along the edge that made it
+  spawnBurst(contact,attacker.primary,heavy?26:14,(heavy?9:5)*velK,heavy?1:.65,bladeDir);
+  spawnBurst(contact,0xffffff,heavy?14:8,(heavy?11:6)*velK,.45,bladeDir);
+  spawnImpactFlash(contact,attacker.primary,heavy?1.5:.9);
+  if(heavy)spawnRing(contact,attacker.primary,2.0+A.mass*.5);
+  if(a.finisher){spawnShockwave(target.root.position.clone(),attacker.primary,2.4+A.mass*.9);environmentBlast(target.root.position,3+A.mass,dmg)}
+  heavy?sfx.hitHeavy(A.mass):sfx.hitLight(A.mass);
+  if(target===player)hudFlash(heavy?.85:.45);
+  if(target.hp<=0)handlePhaseDepletion(target,attacker);
+  updateHUD();
+}
+function parry(def,atk,contact){
+  const now=performance.now();
+  const G=FORMS[def.form], A=FORMS[atk.form];
+  atk.stunUntil=now+520+140*clamp(G.guard/A.poise,.4,2.2); atk.state='hit'; atk.stateT=0; atk.hitPower=1;
+  atk.hitPose=HIT_THRUST; atk.hitPoseDur=.5; atk.hitAmp=clamp(1/A.poise,.3,1);
+  atk.hitDir=1; atk.buffer=null; atk.recoverUntil=now+220;
+  atk.velocity.addScaledVector(atk.root.position.clone().sub(def.root.position).setY(0).normalize(),6.5*A.resist*G.guard);
+  hitFreeze=Math.max(hitFreeze,.13); cam.shake=Math.max(cam.shake,.30); cam.pullback=Math.max(cam.pullback,1.3);
+  def.morph=clamp(def.morph+18,0,100);
+  spawnBurst(contact,def.primary,34,9,1.1); spawnBurst(contact,0xffffff,20,12,.6); spawnRing(contact,0xffffff,2.6);
+  spawnImpactFlash(contact,0xffffff,1.8);
+  sfx.parry(); showStatus(def===player?'PARRY':'RIVAL PARRY'); updateHUD();
+}
+function clash(a,b,contact){
+  const now=performance.now();
+  const A=FORMS[a.form], B=FORMS[b.form];
+  // the lighter blade loses the exchange: it is thrown further and held longer
+  const edge=clamp(A.kbOut/B.kbOut,.35,2.8);
+  a.stunUntil=now+380*clamp(1/edge,.5,1.9); b.stunUntil=now+380*clamp(edge,.5,1.9);
+  a.state=b.state='hit'; a.stateT=b.stateT=0; a.hitPower=b.hitPower=1; a.buffer=b.buffer=null;
+  a.hitPose=b.hitPose=HIT_THRUST; a.hitPoseDur=b.hitPoseDur=.42;
+  a.hitAmp=clamp(1/A.poise,.3,1); b.hitAmp=clamp(1/B.poise,.3,1);
+  a.hitDir=1; b.hitDir=-1;
+  const dir=b.root.position.clone().sub(a.root.position).setY(0).normalize();
+  const f1=5.5*A.resist*clamp(B.kbOut/A.kbOut,.4,2.6), f2=5.5*B.resist*clamp(A.kbOut/B.kbOut,.4,2.6);
+  a.velocity.addScaledVector(dir,-f1); b.velocity.addScaledVector(dir,f2);
+  a.morph=clamp(a.morph+12,0,100); b.morph=clamp(b.morph+12,0,100);
+  hitFreeze=Math.max(hitFreeze,.15); cam.shake=Math.max(cam.shake,.34); cam.pullback=Math.max(cam.pullback,1.8);
+  spawnBurst(contact,0xffffff,44,13,1.2); spawnRing(contact,0xffffff,3.2); spawnImpactFlash(contact,0xffffff,2.0);
+  sfx.clash(); showStatus('CLASH'); updateHUD();
+}
+function killFighter(f,winner){
+  f.dead=true; f.state='dead'; f.stateT=0; f.velocity.multiplyScalar(.4);
+  spawnBurst(f.root.position.clone().setY(2*FORMS[f.form].scale),f.primary,40,8,1.2);
+  cam.shake=Math.max(cam.shake,.4);
+  setTimeout(()=>endMatch(winner===player),900);
+}
+/* --------------------------- defensive options -------------------------- */
+function beginGuard(f){
+  if(intro>0||!canAct(f)||f.state==='attack')return;
+  f.blocking=true; f.state='guard'; f.guardStart=performance.now(); f.parryUntil=f.guardStart+200;
+}
+function endGuard(f){ f.blocking=false; if(f.state==='guard'){f.state='idle';f.stateT=0} }
+function tryDodge(f){
+  if(intro>0||!canAct(f)||f.dead)return;
+  const now=performance.now();
+  const spec=FORMS[f.form], mass=spec.mass;
+  f.blocking=false; f.state='dodge'; f.stateT=0;
+  f.dodgeUntil=now+300+mass*45; f.invulnUntil=now+220+mass*20;
+  let d=f===player?playerMoveVector():f.moveDir.clone();
+  if(d.lengthSq()<.01)d=forwardOf(f).multiplyScalar(-1);
+  d.y=0; d.normalize();
+  f.velocity.copy(d.multiplyScalar(13.5+spec.scale*1.6));
+  f.dodgeLocal=localVelocity(f).normalize();
+  noise(.14,.05,900,'bandpass'); tone(200,.09,'sine',.02,110);
+  if(mass>2)cam.shake=Math.max(cam.shake,.08);
+}
+function phaseHealthFor(form){return PHASE_HP[clamp(form,0,4)]}
+function repelForTransform(f){
+  const opp=f===player?enemy:player;
+  if(!opp||opp.dead)return;
+  const d=opp.root.position.clone().sub(f.root.position).setY(0);
+  const dist=d.length();
+  const safe=3.1+FORMS[f.form].scale*.65;
+  if(dist>0.01&&dist<safe){
+    d.normalize();
+    opp.velocity.addScaledVector(d,(safe-dist)*3.0+2.2);
+    spawnDust(opp.root.position.clone(),0x8d826f,6,1.0);
+  }
+}
+/* Transformation timing is unchanged from V0.5: the meter, the window, the
+   emergency morph and its phase-health penalty all behave exactly as before.
+   Only the phase you land in is stronger. */
+function beginTransform(f,forced=false){
+  if(f.form>=4)return false;
+  const now=performance.now();
+  if(!forced && (intro>0||!canAct(f)||f.morph<100))return false;
+  if(forced && f.morph<100)return false;
+  f.morph=0; f.state='transform'; f.stateT=0; f.blocking=false; f.buffer=null; f.recoverUntil=0;
+  f.transformUntil=now+(forced?1280:1180);
+  f.invulnUntil=Math.max(f.invulnUntil,now+(forced?980:820));
+  f.velocity.multiplyScalar(.15);
+  repelForTransform(f);
+  spawnShockwave(f.root.position.clone(),f.primary,2.5+f.form*.65);
+  spawnBurst(f.root.position.clone().setY(2.2*FORMS[f.form].scale),f.primary,forced?64:48,forced?10:8,forced?1.8:1.4);
+  sfx.transform();
+  if(forced) showStatus(f===player?'EMERGENCY MORPH':'RIVAL EMERGENCY MORPH','PHASE HEALTH PENALTY');
+  setTimeout(()=>{
+    if(f.dead)return;
+    const next=clamp(f.form+1,0,4);
+    setForm(f,next);
+    const max=phaseHealthFor(next);
+    f.maxHp=max;
+    f.hp=max*(forced?FORCED_PHASE_HEALTH:1);
+    f.hpGhost=f.hp;
+    f.phaseStartedAt=performance.now();
+    spawnShockwave(f.root.position.clone(),f.primary,4.0+next*1.7);
+    spawnBurst(f.root.position.clone().setY(2.4*FORMS[next].scale),f.primary,60+next*8,11+next*2,1.7+next*.25);
+    cam.shake=Math.max(cam.shake,.30+.08*next);
+    cam.pullback=Math.max(cam.pullback,2.8+next*.55);
+    if(f.id==='player')showTransformBanner(f);
+    updateHUD();
+  },forced?430:540);
+  return true;
+}
+function tryTransform(f){ beginTransform(f,false); }
+function handlePhaseDepletion(f,winner){
+  if(f.form<4&&f.morph>=100){
+    f.hp=1; f.hpGhost=1;
+    beginTransform(f,true);
+    return;
+  }
+  killFighter(f,winner);
+}
+function showTransformBanner(f){const b=$('#transformBanner');$('#tbRoman').textContent='FORM '+roman[f.form];$('#tbName').textContent=FORMS[f.form].name;b.style.display='grid';clearTimeout(showTransformBanner.t);showTransformBanner.t=setTimeout(()=>b.style.display='none',950)}
+function tryPower(f){
+  const now=performance.now();
+  if(intro>0||!canAct(f)||f.blocking||now-f.lastQ<700)return;
+  const spec=FORMS[f.form];
+  const cost=[24,28,34,40,48][f.form];
+  if(f.energy<cost)return;
+  f.energy-=cost; f.lastQ=now; f.state='power'; f.stateT=0; f.powerUntil=now+440;
+  const target=f===player?enemy:player;
+  f.facing=targetYaw(f,target);
+  sfx.power(f.form);
+  // Q rides the same power curve as everything else the form does
+  const q=96*spec.qPow;
+  if(f.form<=1) setTimeout(()=>{if(!f.dead)launchProjectile(f,target,f.form===1?30:24,q)},150);
+  else if(f.form===2) setTimeout(()=>{if(!f.dead)launchProjectile(f,target,34,q,true)},130);
+  else setTimeout(()=>{if(!f.dead)areaStrike(f,target,f.form===3?4.4:6.8,q)},200);
+}
+
+/* ===========================================================================
+   FIGHTER UPDATE — facing and movement are deliberately separate systems
+   ========================================================================= */
+function targetYaw(f,t){const d=t.root.position.clone().sub(f.root.position);return Math.atan2(-d.x,-d.z)}
+function faceSmooth(f,t,dt,rate){f.facing=angleLerp(f.facing,targetYaw(f,t),damp(rate,dt));f.root.rotation.y=f.facing}
+function updateFacing(f,dt){
+  const opp=f===player?enemy:player;
+  const dist=f.root.position.distanceTo(opp.root.position);
+  const spec=FORMS[f.form];
+  const engage=12+spec.scale*2.5;
+  const sp=f.velocity.length();
+  let want;
+  // the upper body stays presented at the rival while the legs do the footwork
+  if(dist<engage||sp<2.5) want=targetYaw(f,opp);
+  else want=Math.atan2(-f.velocity.x,-f.velocity.z);        // long sprints face where you run
+  f.facing=angleLerp(f.facing,want,damp((dist<engage?16:9)*spec.turn,dt));
+  f.root.rotation.y=f.facing;
+}
+function applyVelocity(f,dt,dampK){
+  f.root.position.addScaledVector(f.velocity,dt);
+  const r=Math.hypot(f.root.position.x,f.root.position.z);
+  const max=arenaRadius-1.2-FORMS[f.form].scale*.7;
+  if(r>max){
+    const nx=f.root.position.x/r,nz=f.root.position.z/r;
+    f.root.position.x=nx*max; f.root.position.z=nz*max;
+    const dot=f.velocity.x*nx+f.velocity.z*nz;
+    if(dot>0){f.velocity.x-=dot*nx;f.velocity.z-=dot*nz;environmentImpact(f,Math.min(280,Math.abs(dot)*18))}
+  }
+  if(dampK<1)f.velocity.multiplyScalar(Math.pow(dampK,dt*60));
+}
+function separateFighters(a,b){
+  const d=b.root.position.clone().sub(a.root.position); d.y=0;
+  const dist=d.length()||.0001, min=bodyRadius(a)+bodyRadius(b);
+  if(dist>=min)return;
+  const n=d.divideScalar(dist), push=(min-dist);
+  const ma=FORMS[a.form].mass, mb=FORMS[b.form].mass, sum=ma+mb;
+  a.root.position.addScaledVector(n,-push*(mb/sum));
+  b.root.position.addScaledVector(n, push*(ma/sum));
+}
+function mirrorPose(p,sign){
+  const o={};
+  for(const k of POSE_KEYS)o[k]=p[k]!==undefined?p[k]:POSE_DEF[k];
+  if(sign>=0)return o;
+  for(const k of LATERAL_KEYS)o[k]*=-1;
+  return o;
+}
+function updateFighter(f,dt,now){
+  const spec=FORMS[f.form];
+  f.energy=clamp(f.energy+dt*(9-f.form*.6),0,100);
+  f.body.scale.lerp(new THREE.Vector3(spec.scale,spec.scale,spec.scale),damp(6,dt));
+  f.hover=lerp(f.hover,f.hoverTarget||0,damp(4,dt));
+  f.hpGhost=lerp(f.hpGhost,f.hp,damp(3.2,dt));
+  animateFormExtras(f,dt,now);
+
+  // what the body is doing to its own velocity right now, in its own frame:
+  // this is what the lean and the braking read from
+  f.accelWorld.copy(f.velocity).sub(f.prevVel).divideScalar(Math.max(dt,1e-4));
+  f.prevVel.copy(f.velocity);
+  const ca=Math.cos(-f.facing), sa=Math.sin(-f.facing);
+  f.accelLocal.set(f.accelWorld.x*ca-f.accelWorld.z*sa,0,f.accelWorld.x*sa+f.accelWorld.z*ca);
+
+  if(f.dead){ blendPose(f,DEAD_POSE,dt,5); applyVelocity(f,dt,.80); writeRig(f); return; }
+
+  switch(f.state){
+    case 'transform': {
+      f.stateT+=dt;
+      faceSmooth(f,f===player?enemy:player,dt,26);
+      const k=Math.sin(clamp(f.stateT/1.22,0,1)*Math.PI);
+      const p=Object.assign({},TRANSFORM_POSE);
+      p.bodyLift=TRANSFORM_POSE.bodyLift*k; p.bodyX=TRANSFORM_POSE.bodyX*k;
+      // the feet stay locked to the floor for the whole rise
+      p.hipsLift=lerp(-.36,TRANSFORM_POSE.hipsLift,k);
+      blendPose(f,p,dt,10);
+      f.velocity.multiplyScalar(Math.pow(.80,dt*60));
+      applyVelocity(f,dt,.8);
+      if(now>=f.transformUntil){f.state='idle';f.stateT=0}
+      break;
+    }
+    case 'attack': updateAttack(f,dt,now); applyVelocity(f,dt,f.attackDamp||.90); break;
+    case 'hit': {
+      f.stateT+=dt;
+      faceSmooth(f,f===player?enemy:player,dt,f.hitPower?4:7);
+      const base=f.hitPose||HIT_SLASH;
+      const dur=f.hitPoseDur||.34;
+      const amp=f.hitAmp!==undefined?f.hitAmp:1;
+      const fade=clamp(1-(f.stateT/dur),0,1)*amp;
+      const target={};
+      const mp=mirrorPose(base,f.hitDir);
+      for(const k of POSE_KEYS){const sv=STANCE[k]!==undefined?STANCE[k]:POSE_DEF[k];target[k]=lerp(sv,mp[k],fade)}
+      blendPose(f,target,dt,26);
+      applyVelocity(f,dt,.90);
+      if(now>=f.stunUntil){f.state='idle';f.stateT=0}
+      break;
+    }
+    case 'dodge': {
+      f.stateT+=dt;
+      faceSmooth(f,f===player?enemy:player,dt,14);
+      const lv=f.dodgeLocal||new THREE.Vector3(0,0,1);
+      const k=clamp(1-f.stateT/.42,0,1);
+      const p={};
+      for(const key of POSE_KEYS)p[key]=STANCE[key]!==undefined?STANCE[key]:POSE_DEF[key];
+      p.bodyZ=-lv.x*.55*k; p.bodyX=STANCE.bodyX+lv.z*.42*k; p.hipsLift=STANCE.hipsLift-.34*k;
+      p.lKnee=STANCE.lKnee+.8*k; p.rKnee=STANCE.rKnee+.8*k;
+      p.lPlant=1-.7*k; p.rPlant=1-.7*k;
+      p.lSx=STANCE.lSx-.5*k; p.rSx=STANCE.rSx-.35*k; p.rE=STANCE.rE+.5*k;
+      blendPose(f,p,dt,24);
+      applyVelocity(f,dt,.80);
+      if(now>=f.dodgeUntil){f.state='idle';f.stateT=0;f.velocity.multiplyScalar(.35)}
+      break;
+    }
+    case 'guard': {
+      f.stateT+=dt;
+      faceSmooth(f,f===player?enemy:player,dt,16);
+      // heavier guards sink deeper and shuffle less: the base is the point
+      const g=Object.assign({},GUARD_POSE);
+      g.hipsLift=GUARD_POSE.hipsLift-(spec.guard-1)*.07;
+      blendPose(f,g,dt,20);
+      if(f===player) playerMove(f,dt,.42/Math.sqrt(spec.guard)); else f.velocity.multiplyScalar(Math.pow(.86,dt*60));
+      applyVelocity(f,dt,1);
+      if(!f.blocking){f.state='idle';f.stateT=0}
+      break;
+    }
+    case 'power': {
+      f.stateT+=dt;
+      faceSmooth(f,f===player?enemy:player,dt,22);
+      blendPose(f,POWER_POSE,dt,22);
+      f.velocity.multiplyScalar(Math.pow(.80,dt*60));
+      applyVelocity(f,dt,1);
+      if(now>=f.powerUntil){f.state='idle';f.stateT=0}
+      break;
+    }
+    default: {
+      // still paying for a committed miss: off balance, slow, open
+      const recovering=now<f.recoverUntil;
+      if(f===player) playerMove(f,dt,recovering?.22:1); else updateAI(f,dt,now);
+      updateFacing(f,dt);
+      if(recovering){
+        const k=clamp((f.recoverUntil-now)/420,0,1);
+        const loco=locomotionPose(f,dt), tgt={};
+        for(const key of POSE_KEYS)tgt[key]=lerp(loco[key],RECOVER_POSE[key]!==undefined?RECOVER_POSE[key]:POSE_DEF[key],k*.85);
+        blendPose(f,tgt,dt,13);
+        f.velocity.multiplyScalar(Math.pow(.74,dt*60));
+      } else {
+        blendPose(f,locomotionPose(f,dt),dt,15);
+      }
+      applyVelocity(f,dt,1);
+    }
+  }
+  writeRig(f);
+  f.root.updateMatrixWorld(true);
+  const tip=f.weapon.userData.tip.getWorldPosition(new THREE.Vector3());
+  if(f.state!=='attack'&&f.tipReady){f.bladeVel.copy(tip).sub(f.prevTip);f.bladeSpeed=f.bladeVel.length()/Math.max(dt,1e-4)}
+  f.prevTip.copy(tip); f.tipReady=true;
+}
+
+/* ------------------------------ player ---------------------------------- */
+function playerMoveVector(){
+  const x=(keys.KeyD?1:0)-(keys.KeyA?1:0), z=(keys.KeyW?1:0)-(keys.KeyS?1:0);
+  if(!x&&!z)return new THREE.Vector3();
+  // strictly screen-relative: W is into the screen, A is always screen-left and
+  // D is always screen-right, at every camera angle. This never inverts.
+  const v=cam.forward.clone().multiplyScalar(z).addScaledVector(cam.right,x);
+  v.y=0; return v.normalize();
+}
+function playerMove(f,dt,mult=1){
+  const dir=playerMoveVector();
+  const spec=FORMS[f.form];
+  const sprint=(keys.ShiftLeft||keys.ShiftRight)&&mult>.9;
+  if(dir.lengthSq()>.001){
+    f.moveDir.copy(dir);
+    // a body cannot drive as hard sideways or backwards as it can forwards
+    const local=dir.clone().applyAxisAngle(new THREE.Vector3(0,1,0),-f.facing);
+    const back=clamp(local.z,0,1), side=Math.abs(local.x);
+    const speed=spec.move*mult*(sprint?1.18:1)*(1-back*.32-side*.12);
+    // reversing costs more than holding a line: the feet have to re-plant first
+    let turnK=1;
+    if(f.velocity.lengthSq()>1){
+      turnK=clamp(.52+.48*dir.dot(f.velocity.clone().normalize()),.42,1);
+    }
+    f.velocity.lerp(dir.multiplyScalar(speed),damp(spec.accel*turnK*mult,dt));
+  } else {
+    // planting a stop: light forms bite instantly, heavy ones carry through
+    const brake=.80+.055*Math.min(1,spec.mass/3.3)+.030*Math.min(1,spec.mass/5.3);
+    f.velocity.multiplyScalar(Math.pow(brake,dt*60));
+  }
+}
+
+/* -------------------------------- AI ------------------------------------
+   Aggressive but readable: it closes, circles, throws real strings, presses
+   after landing, blocks and dodges on a human-ish delay, punishes whiffs and
+   walks straight back into melee after knockback.
+
+   V0.7 adds form awareness. It knows where it sits on the power curve against
+   the rival and fights that fight: ahead by two or more forms it pressures,
+   holds the rival at the edge of its own longer reach and trades willingly;
+   behind, it evades, protects its phase health, refuses heavy trades, banks
+   its morph meter and plays for the transformation. It still reads nothing it
+   cannot see — position, distance, and a swing that has already begun. There
+   is no input reading and no lookahead.
+   ------------------------------------------------------------------------ */
+function startCombo(f,len,type){
+  const n=Math.max(1,len||(1+Math.floor(Math.random()*3)));
+  f.ai.combo=[];
+  const bias=f.ai.heavyBias!==undefined?f.ai.heavyBias:.26;
+  for(let i=0;i<n;i++)f.ai.combo.push(Math.random()<(type==='heavy'?.62:bias)?'heavy':'light');
+  const first=f.ai.combo.shift();
+  tryAttack(f,first);
+}
+function updateAI(f,dt,now){
+  if(intro>0){f.velocity.multiplyScalar(Math.pow(.8,dt*60));return}
+  const t=player, ai=f.ai;
+  const dv=t.root.position.clone().sub(f.root.position); dv.y=0;
+  const dist=dv.length(), dir=dv.clone().normalize();
+  const spec=FORMS[f.form], reach=spec.reach;
+
+  /* ---- where it stands on the power curve, right now ---- */
+  const gap=f.form-t.form;
+  const edge=spec.tier/FORMS[t.form].tier;
+  const dominant=gap>=2, behind=gap<=-1, routed=gap<=-2;
+  // ahead: sit at the outer edge of a longer weapon. behind: stay outside theirs.
+  const pref=reach*(dominant?.92:behind?1.10:.78);
+
+  let aggro=.72+(edge-1)*.20;
+  if(dominant)aggro+=.14;
+  if(routed)aggro-=.28;
+  aggro+=(f.hp/f.maxHp<.38?.10:0)+(t.hp/t.maxHp<.38?.14:0)+(now<ai.pressUntil?.12:0);
+  ai.aggression=clamp(aggro,.30,.97);
+  ai.heavyBias=dominant?.55:behind?.12:.30;          // heavy trades only when it can afford them
+  ai.evade=behind?.50:dominant?.14:.30;              // behind: give ground instead of taking hits
+
+  // just came out of hitstun: answer the pressure instead of eating the next hit
+  if(ai.wake){
+    ai.wake=false;
+    const pressed=(f.stunChain||0)>=2, r=Math.random();
+    if(r<(pressed?.34:.20)+(behind?.16:0)){tryDodge(f);return}
+    if(r<(pressed?.58:.38)+(behind?.14:0)){beginGuard(f);setTimeout(()=>{if(f.blocking)endGuard(f)},300+Math.random()*300);return}
+    if(r<(dominant?.94:.90)&&dist<reach*1.12){startCombo(f,behind?1:2+Math.floor(Math.random()*3));return}
+  }
+
+  /* Transformation timing, unchanged in spirit: the meter is a resource it can
+     sit on. Behind on forms it spends it immediately to catch up; ahead, it
+     banks the phase and keeps the extra health in reserve. */
+  if(f.form<4&&f.morph>=100&&dist>2.0&&now>ai.transformWait){
+    const hpRatio=f.hp/f.maxHp, oppRatio=t.hp/t.maxHp;
+    const shouldMorph = behind || hpRatio<.24
+      || (oppRatio>.72&&Math.random()<.28)
+      || (!dominant&&Math.random()<.20)
+      || Math.random()<.08;
+    if(shouldMorph){ tryTransform(f); return; }
+    ai.transformWait=now+900;
+  }
+
+  // human-ish reaction, re-armed on every individual swing of a chain it can see
+  const swingKey=t.state==='attack'?t.attackType+t.step:null;
+  if(swingKey&&swingKey!==ai.seenKey&&dist<reach+2.4){
+    ai.seenKey=swingKey; ai.react=now+130+Math.random()*210; ai.reactRoll=Math.random();
+  }
+  if(!swingKey)ai.seenKey=null;
+  if(ai.react&&now>ai.react){
+    ai.react=0; const r=ai.reactRoll;
+    if(dominant){
+      // it can afford the exchange: it would rather trade than give ground
+      if(r<.14){beginGuard(f);setTimeout(()=>{if(f.blocking)endGuard(f)},280+Math.random()*240);return}
+      if(r<.72&&dist<reach*1.06){startCombo(f,2+Math.floor(Math.random()*2),Math.random()<.5?'heavy':'light');return}
+    } else {
+      if(r<ai.evade){beginGuard(f);setTimeout(()=>{if(f.blocking)endGuard(f)},340+Math.random()*300);return}
+      if(r<ai.evade+.24&&dist<reach+1.2){tryDodge(f);return}
+      if(!behind&&r<.76&&dist<reach*1.02){startCombo(f,2+Math.floor(Math.random()*2));return}
+    }
+  }
+  // punish an obvious miss — and a committed heavy miss is a long opening
+  if(t.whiffAt&&now-t.whiffAt<540&&dist<reach+1.0&&now>ai.punish){
+    ai.punish=now+1100; t.whiffAt=0;
+    startCombo(f,behind?2:3,(!behind&&Math.random()<.6)?'heavy':'light'); return;
+  }
+  // keep a started string going
+  if(f.state==='attack'){
+    if(ai.combo.length){
+      const a=f.chain[f.step], tt=f.stateT/attackDur(f,a);
+      if(tt>.45&&dist<reach+1.6) tryAttack(f,ai.combo.shift());
+      else if(tt>.9) ai.combo.length=0;
+    }
+    return;
+  }
+  ai.timer-=dt;
+  if(ai.timer<=0){
+    ai.timer=.065+Math.random()*.10;
+    if(dist<=reach*(dominant?1.04:.98)&&now>ai.nextMode){
+      if(Math.random()<ai.aggression){
+        ai.nextMode=now+120+Math.random()*260;
+        // behind on forms it pokes and resets instead of committing to a string
+        const len=behind?1+Math.floor(Math.random()*2):3+Math.floor(Math.random()*2);
+        startCombo(f,len,(!behind&&Math.random()<(dominant?.52:.34))?'heavy':'light');
+        return;
+      }
+      if(Math.random()<(behind?.22:.10)){beginGuard(f);setTimeout(()=>{if(f.blocking)endGuard(f)},320+Math.random()*380);return}
+    }
+    // chip safely from range and feed the morph meter while it is outgunned
+    if(dist>reach*1.35&&f.energy>38&&Math.random()<(behind?.60:.46)){tryPower(f);return}
+    if(Math.random()<.14)ai.strafe*=-1;
+  }
+  // movement: close decisively, then circle at melee distance
+  const tangent=new THREE.Vector3(-dir.z,0,dir.x).multiplyScalar(ai.strafe);
+  const move=new THREE.Vector3();
+  if(dist>pref+1.2) move.addScaledVector(dir,1).addScaledVector(tangent,.22);
+  else if(dist<pref-.7) move.addScaledVector(dir,behind?-1.15:-.85).addScaledVector(tangent,.55);
+  else move.addScaledVector(tangent,1).addScaledVector(dir,dominant?.34:behind?-.06:.22);
+  if(move.lengthSq()>.001)move.normalize();
+  f.moveDir.copy(move);
+  const closing=dist>pref+1.2;
+  const speed=spec.move*(closing?(dist>9?1.22:1.08):(behind?.82:.68));
+  f.velocity.lerp(move.multiplyScalar(speed),damp(spec.accel*.85,dt));
+}
+
+function animateFormExtras(f,dt,now){
+  if(f.form===2){ f.sigSpin.rotation.y+=dt*.85; f.halo.rotation.z+=dt*.25; }
+  if(f.form===3){ f.ascOrbit.rotation.y+=dt*.55; f.ascCrown.rotation.y-=dt*.4; f.gAsc.position.y=Math.sin(now*.0022)*.10; }
+  if(f.form===4){ f.aura.material.opacity=.07+Math.sin(now*.004)*.025; f.gFinal.rotation.y=Math.sin(now*.0013)*.025;  }
+}
+
+/* ===========================================================================
+   CAMERA
+   Architecture unchanged from V0.5: still its own entity, never rotated by body
+   facing, attack animations or transformations. Mouse steers it directly; a
+   gentle dead-zone follow keeps the rival framed without ever yanking the view.
+   V0.7 only tunes the framing so the feet, the full sword arcs, the rival's
+   reaction and the late-form attacks all fit inside the frame.
+   ========================================================================= */
+function updateCamera(dt){
+  const maxForm=Math.max(player.form,enemy.form);
+  const p=player.root.position, e=enemy.root.position;
+  const sep=p.distanceTo(e);
+  cam.mouseIdle+=dt;
+  const want=Math.atan2(-(e.x-p.x),-(e.z-p.z));
+  const d=angleDelta(cam.yaw,want), dead=.18;
+  if(cam.mouseIdle>.16&&Math.abs(d)>dead){
+    // ease toward the edge of the dead zone: firm enough that the duel never
+    // drifts side-on, soft enough that it never yanks the view out of your hands
+    cam.yaw=angleLerp(cam.yaw,want-Math.sign(d)*dead,damp(7.2,dt));
+  }
+  if(cam.yaw>Math.PI)cam.yaw-=TAU; else if(cam.yaw<-Math.PI)cam.yaw+=TAU;
+  const hardErr=angleDelta(cam.yaw,want);
+  if(Math.abs(hardErr)>.72) cam.yaw=angleLerp(cam.yaw,want-Math.sign(hardErr)*.72,damp(15,dt));
+
+  // enough room for the widest weapon currently in play, so no arc gets cropped
+  const arcRoom=Math.max(FORMS[player.form].reach,FORMS[enemy.form].reach)*.30;
+  cam.distTarget=FORMS[maxForm].cam+arcRoom+clamp((sep-FORMS[maxForm].reach*1.5)*.18,0,3.0)+cam.pullback;
+  cam.dist=lerp(cam.dist,cam.distTarget,damp(9,dt));
+  cam.pullback=Math.max(0,cam.pullback-dt*2.4);
+
+  const cp=Math.cos(cam.pitch), sp=Math.sin(cam.pitch);
+  const fw=new THREE.Vector3(-Math.sin(cam.yaw)*cp,sp,-Math.cos(cam.yaw)*cp);
+  cam.forward.set(-Math.sin(cam.yaw),0,-Math.cos(cam.yaw)).normalize();
+  cam.right.set(-cam.forward.z,0,cam.forward.x).normalize();
+
+  // pivot sits on the player, nudged toward the rival so both stay readable.
+  // it rides lower than V0.5 so the footwork stays in shot.
+  const pivot=p.clone();
+  pivot.y+=1.62+FORMS[player.form].scale*(.86+player.form*.24)+player.hover;
+  const toE=e.clone().sub(p); toE.y=0;
+  const nudge=Math.min(2.4,toE.length()*.22);
+  if(toE.lengthSq()>.001)pivot.addScaledVector(toE.normalize(),nudge);
+  cam.pivot.lerp(pivot,damp(24,dt));
+
+  let desired=cam.pivot.clone().addScaledVector(fw,-cam.dist);
+  const rayDir=desired.clone().sub(cam.pivot), len=rayDir.length();
+  if(len>.01){
+    rayDir.normalize();
+    const ray=new THREE.Raycaster(cam.pivot,rayDir,.2,len);
+    const hits=maxForm>=4?[]:ray.intersectObjects(cameraSolids,false).filter(h=>h.object.visible);
+    if(hits.length)desired=cam.pivot.clone().addScaledVector(rayDir,Math.max(2.2,hits[0].distance-.5));
+  }
+  desired.y=Math.max(desired.y,.9);
+
+  // stiff positional catch-up: no floaty trailing after a stop or a knockback
+  camera.position.lerp(desired,damp(32,dt));
+  const lag=camera.position.distanceTo(desired);
+  if(lag>4.5)camera.position.lerp(desired,.5);
+
+  camera.rotation.order='YXZ';
+  camera.rotation.set(cam.pitch,cam.yaw,0);
+
+  if(cam.shake>0){
+    cam.shake=Math.max(0,cam.shake-dt*cam.shakeDecay);
+    const a=cam.shake;
+    camera.position.x+=(Math.random()-.5)*a;
+    camera.position.y+=(Math.random()-.5)*a*.5;
+    camera.position.z+=(Math.random()-.5)*a;
+    camera.rotation.z+=(Math.random()-.5)*a*.06;
+  }
+  // a swing in progress opens the frame a little so the whole arc lands in shot
+  const swinging=(player.state==='attack'?1:0)+(enemy.state==='attack'?1:0);
+  const targetFov=54+maxForm*1.70+swinging*1.5+clamp(player.velocity.length()-7.5,0,5)*.35;
+  camera.fov=lerp(camera.fov,targetFov,damp(8,dt));
+  camera.updateProjectionMatrix();
+}
+
+function spawnBladeTrailSegment(a,b,color,scale=1){
+  if(!a||!b)return;
+  const d=b.clone().sub(a), len=d.length();
+  if(len<.08)return;
+  const geo=new THREE.CylinderGeometry(.025*scale,.065*scale,len,5,1,true);
+  const mat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.52,depthWrite:false});
+  const m=new THREE.Mesh(geo,mat);
+  m.position.copy(a).lerp(b,.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());
+  scene.add(m);
+  particles.push({m,life:.09,max:.09,trail:true});
+}
+
+/* ------------------------------ effects --------------------------------- */
+/* Sparks leave the contact point along the edge that made it, so a horizontal
+   cut throws them sideways and a thrust throws them straight back. */
+function spawnBurst(pos,color,count=12,speed=4,scale=1,dir=null){
+  for(let i=0;i<count;i++){
+    const m=new THREE.Mesh(new THREE.BoxGeometry((.04+Math.random()*.05)*scale,.04*scale,(.18+Math.random()*.28)*scale),new THREE.MeshBasicMaterial({color,transparent:true,opacity:1}));
+    m.position.copy(pos); scene.add(m);
+    const v=new THREE.Vector3((Math.random()-.5)*speed,Math.random()*speed*.85,(Math.random()-.5)*speed);
+    if(dir)v.addScaledVector(dir,speed*(.50+Math.random()*.70));
+    particles.push({m,v,life:.22+Math.random()*.34,max:.56,grav:9});
+  }
+}
+function spawnDust(pos,color,count,scale){
+  for(let i=0;i<count;i++){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(.2*scale,.06*scale,.2*scale),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.5}));
+    m.position.copy(pos).add(new THREE.Vector3((Math.random()-.5)*scale,.06,(Math.random()-.5)*scale)); scene.add(m);
+    particles.push({m,v:new THREE.Vector3((Math.random()-.5)*1.6,Math.random()*1.4,(Math.random()-.5)*1.6),life:.4,max:.4,grav:2.5,fade:.5});
+  }
+}
+function spawnRing(pos,color,r){
+  const m=new THREE.Mesh(new THREE.RingGeometry(.4,.52,36),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.85,side:THREE.DoubleSide}));
+  m.position.copy(pos); m.lookAt(camera.position); scene.add(m);
+  particles.push({m,life:.26,max:.26,shock:true,target:r});
+}
+function spawnShockwave(pos,color,r=2){
+  const m=new THREE.Mesh(new THREE.RingGeometry(.5,.62,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8,side:THREE.DoubleSide}));
+  m.rotation.x=-Math.PI/2; m.position.copy(pos).setY(.06); scene.add(m);
+  particles.push({m,life:.5,max:.5,shock:true,target:r});
+}
+function spawnImpactFlash(pos,color,scale){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(.42*scale,10,8),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.95}));
+  m.position.copy(pos); scene.add(m);
+  particles.push({m,life:.11,max:.11,flash:true,target:scale*2.1});
+}
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i]; p.life-=dt;
+    const k=clamp(p.life/p.max,0,1);
+    if(p.shock){const t=1-k;p.m.scale.setScalar(lerp(.5,p.target,smooth(t)));p.m.material.opacity=(1-t)*.8}
+    else if(p.flash){const t=1-k;p.m.scale.setScalar(lerp(.7,p.target,t));p.m.material.opacity=k}
+    else if(p.trail){p.m.material.opacity=k*.52}
+    else{
+      p.v.y-=(p.grav||9)*dt;
+      p.m.position.addScaledVector(p.v,dt);
+      p.m.rotation.x+=dt*9; p.m.rotation.z+=dt*7;
+      p.m.material.opacity=k*(p.fade||1);
+    }
+    if(p.life<=0){scene.remove(p.m);p.m.geometry.dispose();p.m.material.dispose();particles.splice(i,1)}
+  }
+}
+function environmentImpact(f,power){
+  if(power<50)return;
+  spawnDust(f.root.position.clone(),0x8d826f,Math.min(14,4+Math.round(power/25)),1);
+  cam.shake=Math.max(cam.shake,.06);
+  if(FORMS[f.form].mass>1.9)environmentBlast(f.root.position,2.5+FORMS[f.form].scale,power);
+}
+function environmentBlast(center,radius,power){
+  scene.children.forEach(o=>{
+    if(!o.userData||!o.userData.breakable)return;
+    const p=new THREE.Vector3(); o.getWorldPosition(p);
+    if(p.distanceTo(center)<radius+2){
+      o.userData.damage=(o.userData.damage||0)+power;
+      if(o.userData.damage>220&&o.visible){o.visible=false;spawnDebris(p,0x3b3a38,10)}
+    }
+  });
+}
+function spawnDebris(pos,color,count){
+  for(let i=0;i<count;i++){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(.25+Math.random()*.35,.18+Math.random()*.3,.2+Math.random()*.4),new THREE.MeshStandardMaterial({color,roughness:.8,metalness:.35}));
+    m.position.copy(pos); m.castShadow=true; scene.add(m);
+    debris.push({m,v:new THREE.Vector3((Math.random()-.5)*7,2+Math.random()*5,(Math.random()-.5)*7),life:3});
+  }
+}
+function updateDebris(dt){
+  for(let i=debris.length-1;i>=0;i--){
+    const d=debris[i]; d.life-=dt; d.v.y-=9.5*dt;
+    d.m.position.addScaledVector(d.v,dt);
+    d.m.rotation.x+=dt*2; d.m.rotation.z+=dt*1.7;
+    if(d.m.position.y<.15){d.m.position.y=.15;d.v.y*=-.15;d.v.multiplyScalar(.85)}
+    if(d.life<=0){scene.remove(d.m);debris.splice(i,1)}
+  }
+}
+function launchProjectile(f,target,speed,damage,pierce=false){
+  const from=f.root.position.clone().setY(2.2*FORMS[f.form].scale);
+  const to=target.root.position.clone().setY(2.0*FORMS[target.form].scale);
+  const dir=to.sub(from).normalize();
+  const mesh=new THREE.Mesh(new THREE.SphereGeometry(.18+FORMS[f.form].scale*.09,10,8),new THREE.MeshBasicMaterial({color:f.primary}));
+  mesh.position.copy(from).addScaledVector(dir,1.1); scene.add(mesh);
+  projectiles.push({mesh,owner:f,vel:dir.multiplyScalar(speed),damage,pierce,life:2.2,radius:.5+FORMS[f.form].scale*.12});
+  spawnBurst(mesh.position.clone(),f.primary,8,3,.6);
+}
+function areaStrike(f,target,radius,damage){
+  const center=target.root.position.clone();
+  spawnShockwave(center,f.primary,radius);
+  spawnBurst(center.clone().setY(1.4),f.primary,46,9,1.2);
+  if(!target.dead&&performance.now()>target.invulnUntil)
+    dealHit(f,target,{dmg:damage,kb:2.4,stop:.10,finisher:true},center.clone().setY(2*FORMS[target.form].scale));
+  environmentBlast(center,radius,damage);
+  cam.shake=Math.max(cam.shake,.3); sfx.hitHeavy(FORMS[f.form].mass);
+}
+function updateProjectiles(dt){
+  for(let i=projectiles.length-1;i>=0;i--){
+    const p=projectiles[i]; p.life-=dt;
+    p.mesh.position.addScaledVector(p.vel,dt);
+    p.mesh.scale.setScalar(1+Math.sin(performance.now()*.02)*.18);
+    const t=p.owner===player?enemy:player;
+    const centre=t.root.position.clone().setY(2.0*FORMS[t.form].scale);
+    if(!t.dead&&p.mesh.position.distanceTo(centre)<p.radius+bodyRadius(t)){
+      if(performance.now()>t.invulnUntil)
+        dealHit(p.owner,t,{dmg:p.damage,kb:1.4,stop:.06,finisher:p.damage>140},p.mesh.position.clone());
+      scene.remove(p.mesh); projectiles.splice(i,1); continue;
+    }
+    if(p.life<=0||Math.hypot(p.mesh.position.x,p.mesh.position.z)>arenaRadius+5){scene.remove(p.mesh);projectiles.splice(i,1)}
+  }
+}
+
+/* -------------------------------- HUD ----------------------------------- */
+function showStatus(text,sub=''){const s=$('#status');s.innerHTML=text+(sub?'<small>'+sub+'</small>':'');clearTimeout(showStatus.t);showStatus.t=setTimeout(()=>s.innerHTML='',700)}
+function showCombo(f){
+  const c=$('#combo'); const name=f.chain?f.chain[f.step].name:'';
+  c.textContent=(f.attackType==='heavy'?'HEAVY · ':'LIGHT · ')+name+'  '+(f.step+1)+'/'+f.chain.length;
+  c.style.opacity='1'; clearTimeout(showCombo.t); showCombo.t=setTimeout(hideCombo,900);
+}
+function hideCombo(){$('#combo').style.opacity='0'}
+function hudFlash(a){const el=$('#flash');el.style.opacity=String(a);clearTimeout(hudFlash.t);hudFlash.t=setTimeout(()=>el.style.opacity='0',90)}
+function updatePhaseRow(f,id){
+  const el=$(id); if(!el)return;
+  el.innerHTML='';
+  for(let i=0;i<5;i++){const d=document.createElement('span');d.className='phaseDot '+(i<f.form?'spent':i===f.form?'current':'future');d.title='FORM '+roman[i]+' · '+FORMS[i].name;el.appendChild(d);}
+}
+function updateHUD(){
+  $('#pHp').style.transform=`scaleX(${player.hp/player.maxHp})`;
+  $('#eHp').style.transform=`scaleX(${enemy.hp/enemy.maxHp})`;
+  $('#pHpGhost').style.transform=`scaleX(${player.hpGhost/player.maxHp})`;
+  $('#eHpGhost').style.transform=`scaleX(${enemy.hpGhost/enemy.maxHp})`;
+  $('#pEnergy').style.transform=`scaleX(${player.energy/100})`;
+  $('#eEnergy').style.transform=`scaleX(${enemy.energy/100})`;
+  $('#pMorph').style.transform=`scaleX(${player.morph/100})`;
+  $('#eMorph').style.transform=`scaleX(${enemy.morph/100})`;
+  $('#pMorphWrap').className='meter transform'+(player.morph>=100&&player.form<4?' ready':'');
+  $('#eMorphWrap').className='meter transform'+(enemy.morph>=100&&enemy.form<4?' ready':'');
+  $('#pFormName').textContent=`${roman[player.form]} · ${FORMS[player.form].name}`;
+  $('#eFormName').textContent=`${roman[enemy.form]} · ${FORMS[enemy.form].name}`;
+  $('#timer').textContent=Math.max(0,Math.ceil(matchTime));
+  updatePhaseRow(player,'#pPhaseRow'); updatePhaseRow(enemy,'#ePhaseRow');
+}
+
+/* ----------------------------- match flow ------------------------------- */
+function resetMatch(){
+  [player,enemy].forEach(f=>{
+    f.maxHp=PHASE_HP[0];f.hp=PHASE_HP[0];f.hpGhost=PHASE_HP[0];f.energy=100;f.morph=0;f.dead=false;f.blocking=false;f.phaseStartedAt=performance.now();
+    f.state='idle';f.stateT=0;f.chain=null;f.attackType=null;f.step=0;f.buffer=null;f.linked=false;
+    f.attackHit=false;f.attackWhiffFlag=false;f.whiffAt=0;f.attackDamp=.90;
+    f.stunUntil=0;f.invulnUntil=0;f.dodgeUntil=0;f.transformUntil=0;f.powerUntil=0;f.lastQ=0;f.recoverUntil=0;
+    f.stunChain=1;f.stunChainUntil=0;f.lastHitAt=0;
+    f.hitPose=null;f.hitPoseDur=.34;f.hitAmp=1;f.hitPower=0;f.hitDir=1;
+    f.velocity.set(0,0,0);f.moveDir.set(0,0,0);f.prevVel.set(0,0,0);
+    f.accelWorld.set(0,0,0);f.accelLocal.set(0,0,0);
+    f.bladeVel.set(0,0,0);f.bladeSpeed=0;f.tipReady=false;
+    f.gait=0;f.gaitPhase=1;f.hover=0;f.lastFootfall=0;
+    f.ai.combo.length=0;f.ai.timer=0;f.ai.reacting=false;f.ai.react=0;f.ai.punish=0;f.ai.nextMode=0;
+    f.ai.transformWait=0;f.ai.wake=false;f.ai.seenKey=null;f.ai.pressUntil=0;
+    setForm(f,0,true);
+    f.cur=Object.assign({},POSE_DEF);
+    for(const k of POSE_KEYS)if(STANCE[k]!==undefined)f.cur[k]=STANCE[k];
+    writeRig(f);
+  });
+  player.root.position.set(0,0,5.4); enemy.root.position.set(0,0,-5.4);
+  player.facing=0; enemy.facing=Math.PI;
+  player.root.rotation.y=0; enemy.root.rotation.y=Math.PI;
+  for(const p of particles)scene.remove(p.m); particles.length=0;
+  for(const d of debris)scene.remove(d.m); debris.length=0;
+  for(const p of projectiles)scene.remove(p.mesh); projectiles.length=0;
+  cam.yaw=0; cam.pitch=-.24; cam.dist=FORMS[0].cam; cam.pullback=0; cam.shake=0; cam.mouseIdle=99;
+  cam.pivot.copy(player.root.position).add(new THREE.Vector3(0,2.5,0));
+  camera.position.copy(cam.pivot).add(new THREE.Vector3(0,cam.dist*.20,cam.dist));
+  matchTime=420; hitFreeze=0; intro=2.4; running=true;
+  $('#endCard').style.display='none'; $('#status').textContent=''; hideCombo();
+  updateHUD();
+}
+function endMatch(win){
+  running=false; document.exitPointerLock?.();
+  $('#endTitle').textContent=win?'VICTORY':'DEFEAT';
+  $('#endSub').textContent=win?'The rival falls. Your next form awaits.':'The rival read you first. Rematch and adapt.';
+  $('#endCard').style.display='grid';
+}
+
+/* ------------------------------- input ---------------------------------- */
+function bindInput(){
+  document.addEventListener('keydown',e=>{
+    keys[e.code]=true; if(!running)return;
+    if(e.code==='KeyE')tryDodge(player);
+    if(e.code==='KeyF')beginGuard(player);
+    if(e.code==='KeyR')tryTransform(player);
+    if(e.code==='KeyQ')tryPower(player);
+  });
+  document.addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='KeyF')endGuard(player)});
+  document.addEventListener('mousedown',e=>{
+    if(e.button===0)keys.Mouse0=true; if(e.button===2)keys.Mouse2=true;
+    if(!running||$('#menu').style.display!=='none')return;
+    if(e.button===0)tryAttack(player,'light');
+    if(e.button===2)tryAttack(player,'heavy');
+  });
+  document.addEventListener('mouseup',e=>{if(e.button===0)keys.Mouse0=false;if(e.button===2)keys.Mouse2=false;});
+  document.addEventListener('contextmenu',e=>e.preventDefault());
+  window.addEventListener('blur',()=>{keys={};endGuard(player)});
+  $('#playBtn').addEventListener('click',()=>{
+    try{const AC=window.AudioContext||window.webkitAudioContext;if(!audioCtx&&AC)audioCtx=new AC();audioCtx?.resume?.();}catch(err){console.warn('Audio unavailable',err)}
+    $('#menu').style.display='none'; resetMatch();
+    try{renderer.domElement.requestPointerLock?.()}catch(err){}
+  });
+  $('#rematch').addEventListener('click',()=>{resetMatch();try{renderer.domElement.requestPointerLock?.()}catch(err){}});
+}
+
+/* -------------------------------- loop ---------------------------------- */
+function loop(ts){
+  requestAnimationFrame(loop);
+  let dt=Math.min(.033,(ts-lastTs)/1000||.016); lastTs=ts;
+  if(!running){renderer.render(scene,camera);return}
+  if(hitFreeze>0){
+    // hitstop: the world holds for a beat so contact registers physically
+    hitFreeze-=dt;
+    updateParticles(dt*.3); updateCamera(dt*.35);
+    renderer.render(scene,camera); return;
+  }
+  const now=performance.now();
+  if(intro>0){
+    intro-=dt;
+    $('#status').textContent=intro>1.6?'READY':intro>.6?'ASCEND':'FIGHT';
+    if(intro<=0)$('#status').textContent='';
+    updateFighter(player,dt,now); updateFighter(enemy,dt,now);
+    updateCamera(dt); renderer.render(scene,camera); return;
+  }
+  matchTime-=dt;
+  if(matchTime<=0){const life=f=>(4-f.form)+(f.hp/Math.max(1,f.maxHp));endMatch(life(player)>=life(enemy));return}
+  updateFighter(player,dt,now);
+  updateFighter(enemy,dt,now);
+  separateFighters(player,enemy);
+  updateProjectiles(dt); updateParticles(dt); updateDebris(dt);
+  updateCamera(dt); updateHUD();
+  renderer.render(scene,camera);
+}
+
+init();
+})();
+} catch (err) { showBootError(err); }
+}).catch(showBootError);
+</script>
+</body>
+</html>
