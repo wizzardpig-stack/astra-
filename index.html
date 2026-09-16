@@ -20,19 +20,34 @@
 <div class="boot" id="boot"><div><b>ASTRA//SIGNATURE</b><small>INITIALIZING CELESTIAL ENGINE</small></div></div>
 <noscript><div class="boot"><div><b>ASTRA//SIGNATURE</b><small>JavaScript is required to calculate and render the chart.</small></div></div></noscript>
 <script>
+/* app.html is the complete public instrument. This loader injects it verbatim,
+   then installs entry-point validation that prevents a manually entered
+   location from being silently interpreted as UTC when no time zone was
+   explicitly chosen. No birth data is transmitted by this guard. */
+function installLaunchGuards(){
+  document.addEventListener('submit',function(e){
+    if(!e.target || e.target.id!=='birthForm') return;
+    const tz=document.getElementById('tz');
+    if(tz && !tz.value){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const err=document.getElementById('formError');
+      if(err){
+        err.style.display='block';
+        err.textContent='Choose a time zone for this location.';
+      }
+      try{ tz.focus({preventScroll:true}); }catch(_){ tz.focus(); }
+    }
+  },true);
+}
 (async()=>{
   try{
-    let app=await (await fetch('./app.html',{cache:'no-store'})).text();
-    app=app.replace('width=device-width, initial-scale=1.0','width=device-width, initial-scale=1.0, viewport-fit=cover');
-    app=app.replace('Enter your birth data. ASTRA//SIGNATURE computes the real chart and reads it back as a developmental instrument.','Enter your birth data. ASTRA//SIGNATURE computes an astronomically calculated chart and reads it back as a developmental instrument.');
-    app=app.replace('Tropical zodiac, whole degrees of longitude, no house system beyond the angles.','When birth time is known, houses use the selected Placidus, Whole Sign, or Equal system. Sidereal mode applies the selected ayanamsa.');
-    app=app.replace('</form>\n    <details class="method">','</form>\n    <p class="hint" style="margin-top:10px">Birth data is processed locally in this browser and is not uploaded.</p>\n    <details class="method">');
-    app=app.replace('<div class="voicebar" id="voiceBar" data-state="offline">','<div class="voicebar" id="voiceBar" data-state="offline" hidden>');
-    app=app.replace('ANCIENT SYMBOLS · REAL EPHEMERIS','ANCIENT SYMBOLS · CALCULATED SKY');
-    app=app.replace('</head>','<style>@media(max-width:820px){input,select{font-size:16px!important}}</style></head>');
+    const app=await (await fetch('./app.html',{cache:'no-store'})).text();
     document.open();document.write(app);document.close();
+    installLaunchGuards();
   }catch(err){
-    document.getElementById('boot').innerHTML='<div><b>ASTRA//SIGNATURE</b><small>Unable to load the celestial engine. Refresh to try again.</small></div>';
+    const boot=document.getElementById('boot');
+    if(boot) boot.innerHTML='<div><b>ASTRA//SIGNATURE</b><small>Unable to load the celestial engine. Refresh to try again.</small></div>';
     console.error(err);
   }
 })();
