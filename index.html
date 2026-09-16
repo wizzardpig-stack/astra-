@@ -20,16 +20,15 @@
 <div class="boot" id="boot"><div><b>ASTRA//SIGNATURE</b><small>INITIALIZING CELESTIAL ENGINE</small></div></div>
 <noscript><div class="boot"><div><b>ASTRA//SIGNATURE</b><small>JavaScript is required to calculate and render the chart.</small></div></div></noscript>
 <script>
+/* app.html is the complete, correct public build — this loader fetches and
+   injects it verbatim. It used to patch release copy in with string
+   replacement at runtime; that made the deployed app.html itself stale and
+   made every fix here fragile against the smallest wording change over
+   there. The fixes now live in app.html directly, so there is nothing left
+   to patch. */
 (async()=>{
   try{
-    let app=await (await fetch('./app.html',{cache:'no-store'})).text();
-    app=app.replace('width=device-width, initial-scale=1.0','width=device-width, initial-scale=1.0, viewport-fit=cover');
-    app=app.replace('Enter your birth data. ASTRA//SIGNATURE computes the real chart and reads it back as a developmental instrument.','Enter your birth data. ASTRA//SIGNATURE computes an astronomically calculated chart and reads it back as a developmental instrument.');
-    app=app.replace('Tropical zodiac, whole degrees of longitude, no house system beyond the angles.','When birth time is known, houses use the selected Placidus, Whole Sign, or Equal system. Sidereal mode applies the selected ayanamsa.');
-    app=app.replace('</form>\n    <details class="method">','</form>\n    <p class="hint" style="margin-top:10px">Birth data is processed locally in this browser and is not uploaded.</p>\n    <details class="method">');
-    app=app.replace('<div class="voicebar" id="voiceBar" data-state="offline">','<div class="voicebar" id="voiceBar" data-state="offline" hidden>');
-    app=app.replace('ANCIENT SYMBOLS · REAL EPHEMERIS','ANCIENT SYMBOLS · CALCULATED SKY');
-    app=app.replace('</head>','<style>@media(max-width:820px){input,select{font-size:16px!important}}</style></head>');
+    const app=await (await fetch('./app.html',{cache:'no-store'})).text();
     document.open();document.write(app);document.close();
   }catch(err){
     document.getElementById('boot').innerHTML='<div><b>ASTRA//SIGNATURE</b><small>Unable to load the celestial engine. Refresh to try again.</small></div>';
