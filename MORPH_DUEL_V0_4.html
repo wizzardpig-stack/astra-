@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>MORPH DUEL V0.4</title>
+<style>
+  :root{
+    --ink:#ece7dc; --muted:#9f9b92; --line:#3a3a3c; --panel:rgba(13,14,16,.72);
+    --player:#e5c36a; --enemy:#d23a45; --energy:#6db8ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07080a;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  canvas{display:block;width:100%;height:100%}
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:10}
+  .topbar{position:absolute;left:24px;right:24px;top:18px;display:grid;grid-template-columns:1fr auto 1fr;gap:20px;align-items:start}
+  .fighterHud{min-width:0}
+  .fighterHud.enemy{text-align:right}
+  .nameRow{display:flex;gap:10px;align-items:baseline;margin-bottom:8px}.enemy .nameRow{justify-content:flex-end}
+  .name{font-weight:800;letter-spacing:.08em;font-size:13px}.formName{font-size:11px;color:var(--muted);letter-spacing:.12em}
+  .bar{height:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);position:relative;overflow:hidden}
+  .bar>i{display:block;height:100%;width:100%;transform-origin:left center;background:linear-gradient(90deg,#8f1f29,#d23a45)}
+  .bar>u{position:absolute;inset:0;display:block;background:rgba(255,255,255,.55);transform-origin:left center;opacity:.35;pointer-events:none}
+  .player .bar>i{background:linear-gradient(90deg,#8f6d2d,#e5c36a)}
+  .enemy .bar>i{transform-origin:right center;margin-left:auto}
+  .enemy .bar>u{transform-origin:right center}
+  .subrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+  .meter{height:5px;background:rgba(255,255,255,.06);overflow:hidden}.meter i{display:block;height:100%;background:#6db8ff;transform-origin:left}.enemy .meter i{margin-left:auto;transform-origin:right}
+  .meter.transform i{background:#b68cff}
+  .meter.transform.ready i{background:#fff;box-shadow:0 0 10px #b68cff}
+  .centerHud{text-align:center;padding-top:2px}.timer{font-size:28px;font-weight:900;letter-spacing:.08em}.round{font-size:10px;color:var(--muted);letter-spacing:.2em;margin-top:3px}
+  #formRail{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:7px;align-items:center}
+  .pip{width:27px;height:4px;background:rgba(255,255,255,.12)}.pip.on{background:var(--player)}.pip.current{height:7px;background:#fff}
+  #status{position:absolute;left:50%;top:18%;transform:translateX(-50%);font-weight:900;letter-spacing:.16em;font-size:18px;text-shadow:0 2px 12px #000;text-align:center;white-space:nowrap}
+  #status small{display:block;font-size:10px;color:#c9c5bc;margin-top:7px;letter-spacing:.2em}
+  #combo{position:absolute;left:50%;top:26%;transform:translateX(-50%);font-size:12px;letter-spacing:.24em;color:#e5c36a;opacity:0;transition:opacity .18s}
+  #flash{position:absolute;inset:0;background:radial-gradient(circle at 50% 55%,rgba(255,255,255,0) 40%,rgba(210,58,69,.55) 100%);opacity:0;transition:opacity .16s ease-out}
+  #help{position:absolute;left:22px;bottom:22px;font-size:11px;line-height:1.7;color:#bab6ad;letter-spacing:.04em;background:rgba(0,0,0,.18);padding:8px 10px;border-left:2px solid rgba(229,195,106,.55)}
+  #menu{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:radial-gradient(circle at 50% 46%,rgba(70,60,48,.18),rgba(5,6,8,.93) 62%)}
+  .menuInner{width:min(620px,90vw);text-align:center}.eyebrow{font-size:11px;letter-spacing:.35em;color:#a59e91;margin-bottom:14px}.title{font-size:clamp(48px,8vw,92px);font-weight:950;line-height:.88;letter-spacing:-.055em}.title span{display:block;color:#b88b48;font-weight:700;font-size:.34em;letter-spacing:.32em;margin-top:18px}
+  .desc{max-width:520px;margin:24px auto 26px;color:#a9a59d;line-height:1.55;font-size:14px}
+  button{pointer-events:auto;border:1px solid #9a7c4b;background:#151515;color:#f1eadc;padding:14px 30px;font-weight:800;letter-spacing:.16em;cursor:pointer;min-width:180px}button:hover{background:#1f1d19}button:disabled{opacity:.48;cursor:wait}#bootStatus{min-height:18px;margin-top:12px;font-size:10px;letter-spacing:.12em;color:#9f9b92}#bootStatus.error{color:#ff8f8f}
+  .micro{margin-top:16px;font-size:10px;color:#7f7a72;letter-spacing:.12em}
+  #endCard{position:fixed;inset:0;z-index:25;display:none;place-items:center;background:rgba(3,4,5,.66);backdrop-filter:blur(3px)}
+  #endCard .inner{text-align:center}.endTitle{font-size:54px;font-weight:950;letter-spacing:.05em}.endSub{color:#aaa49a;margin:8px 0 24px}
+  #transformBanner{position:fixed;inset:0;z-index:20;display:none;pointer-events:none;place-items:center;background:radial-gradient(circle,rgba(180,140,80,.12),rgba(0,0,0,0) 55%)}
+  #transformBanner .tb{text-align:center;text-shadow:0 4px 18px #000}.tb .roman{font-size:13px;letter-spacing:.5em;color:#d8cdbb}.tb .tf{font-size:44px;font-weight:950;letter-spacing:.08em;margin-top:6px}
+  @media(max-width:700px){.topbar{left:10px;right:10px;top:10px;gap:8px}.name{font-size:10px}.formName{display:none}.timer{font-size:22px}#help{display:none}.title{font-size:52px}}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="topbar">
+    <div class="fighterHud player">
+      <div class="nameRow"><span class="name">AUREL</span><span class="formName" id="pFormName">I · BASE</span></div>
+      <div class="bar"><u id="pHpGhost"></u><i id="pHp"></i></div>
+      <div class="subrow"><div class="meter"><i id="pEnergy"></i></div><div class="meter transform" id="pMorphWrap"><i id="pMorph"></i></div></div>
+    </div>
+    <div class="centerHud"><div class="timer" id="timer">180</div><div class="round">DUEL // 01</div></div>
+    <div class="fighterHud enemy">
+      <div class="nameRow"><span class="formName" id="eFormName">I · BASE</span><span class="name">VANTA</span></div>
+      <div class="bar"><u id="eHpGhost"></u><i id="eHp"></i></div>
+      <div class="subrow"><div class="meter"><i id="eEnergy"></i></div><div class="meter transform" id="eMorphWrap"><i id="eMorph"></i></div></div>
+    </div>
+  </div>
+  <div id="flash"></div>
+  <div id="status"></div>
+  <div id="combo"></div>
+  <div id="formRail"><span class="pip current"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></div>
+  <div id="help">WASD · MOVE &nbsp; SHIFT · RUN<br>LMB · LIGHT CHAIN &nbsp; RMB · HEAVY CHAIN &nbsp; Q · POWER<br>E · DODGE &nbsp; F · GUARD/PARRY &nbsp; R · TRANSFORM<br>CLICK ARENA · CAPTURE MOUSE &nbsp; ESC · RELEASE</div>
+</div>
+<div id="menu"><div class="menuInner"><div class="eyebrow">MYTHIC COMBAT PROTOCOL</div><div class="title">MORPH DUEL<span>V0.4 · WORKABLE COMBAT PASS</span></div><div class="desc">Stable duel camera, locked screen-relative movement, full-body light and heavy combo chains, real contact feedback, and five forms that read from silhouette alone.</div><button id="playBtn" disabled>LOADING CORE</button><div id="bootStatus">INITIALIZING 3D CORE…</div><div class="micro">DESKTOP PROTOTYPE · CLICK ONCE IN-GAME FOR MOUSE CAMERA</div></div></div>
+<div id="endCard"><div class="inner"><div class="endTitle" id="endTitle">VICTORY</div><div class="endSub" id="endSub">The arena remembers.</div><button id="rematch">REMATCH</button></div></div>
+<div id="transformBanner"><div class="tb"><div class="roman" id="tbRoman">FORM II</div><div class="tf" id="tbName">ARMORED</div></div></div>
+<script>
+window.__threeReady = new Promise((resolve, reject) => {
+  const urls = [
+    'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js',
+    'https://unpkg.com/three@0.160.0/build/three.min.js'
+  ];
+  let i = 0;
+  const loadNext = () => {
+    if (i >= urls.length) { reject(new Error('Unable to load Three.js from available CDNs.')); return; }
+    const script = document.createElement('script');
+    script.src = urls[i++];
+    script.async = true;
+    script.onload = () => window.THREE ? resolve() : loadNext();
+    script.onerror = loadNext;
+    document.head.appendChild(script);
+  };
+  loadNext();
+});
+</script>
+<script>
+function showBootError(err){
+  console.error(err);
+  const btn=document.getElementById('playBtn');
+  const status=document.getElementById('bootStatus');
+  if(btn){btn.disabled=true;btn.textContent='CORE LOAD FAILED';}
+  if(status){status.className='error';status.textContent='GAME CORE COULD NOT LOAD. CHECK CONNECTION AND REOPEN THE FILE.';}
+}
+window.__threeReady.then(() => {
+try {
+(() => {
+'use strict';
+/* ============================================================================
+   MORPH DUEL V0.4 — WORKABLE COMBAT PASS
+   Built directly on the V0.3 video pass. Same concept, same arena, same five
+   forms, same HUD. What changed is everything that decides whether a round
+   feels like a fight:
+     · camera is its own entity (no longer welded to body facing)
+     · movement is screen-relative and never inverts; facing is a separate system
+     · authored full-body light/heavy combo chains with real contact windows
+     · blade-swept hit detection so contact happens where the sword actually is
+     · hitstop, sparks, knockback, victim reactions, follow-through
+     · a duelling AI instead of a wanderer
+     · five silhouettes that read at a glance, scaling by MASS not speed
+   ========================================================================== */
+const $ = s => document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=t=>t*t*(3-2*t);
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const TAU=Math.PI*2;
+const damp=(rate,dt)=>1-Math.exp(-dt*rate);
+function angleLerp(a,b,t){const d=Math.atan2(Math.sin(b-a),Math.cos(b-a));return a+d*t}
+function angleDelta(a,b){return Math.atan2(Math.sin(b-a),Math.cos(b-a))}
+
+/* Forms escalate through MASS. Later forms are bigger, hit harder, reach
+   further and shake more — they are not faster. atk>1 means slower swings. */
+const FORMS=[
+  {name:'BASE',      scale:1.00, move:7.8, atk:1.00, reach:3.50, dmg:1.00, resist:1.00, cam:10.6, mass:1.00, power:'ARC SHOT'},
+  {name:'ARMORED',   scale:1.20, move:7.1, atk:1.14, reach:3.90, dmg:1.24, resist:.86, cam:11.6, mass:1.45, power:'WARD BREAK'},
+  {name:'SIGNATURE', scale:1.30, move:7.4, atk:1.06, reach:4.70, dmg:1.36, resist:.80, cam:12.6, mass:1.60, power:'CROWN SPEAR'},
+  {name:'ASCENDED',  scale:1.62, move:7.0, atk:1.22, reach:6.00, dmg:1.58, resist:.70, cam:15.4, mass:2.15, power:'SKY REND'},
+  {name:'FINAL',     scale:2.35, move:6.3, atk:1.44, reach:8.30, dmg:1.88, resist:.55, cam:24.0, mass:3.30, power:'WORLD BREAK'}
+];
+const roman=['I','II','III','IV','V'];
+
+let scene,camera,renderer;
+let running=false, matchTime=180, lastTs=0, hitFreeze=0, intro=0;
+let keys={}, pointerLocked=false;
+let particles=[], projectiles=[], debris=[];
+let cameraSolids=[];
+let player, enemy;
+let audioCtx=null;
+const arenaRadius=18;
+
+/* ---- camera state: fully independent of any fighter's body rotation ---- */
+const cam={
+  yaw:0, pitch:-0.20, dist:7.4, distTarget:7.4, pullback:0, shake:0, shakeDecay:3.4,
+  pos:new THREE.Vector3(), pivot:new THREE.Vector3(), mouseIdle:0, forward:new THREE.Vector3(0,0,-1), right:new THREE.Vector3(1,0,0)
+};
+
+/* ------------------------------- audio ---------------------------------- */
+function tone(freq=220,dur=.06,type='sine',gain=.03,slideTo=0){
+  if(!audioCtx) return;
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain(), t=audioCtx.currentTime;
+  o.type=type;o.frequency.setValueAtTime(freq,t);
+  if(slideTo)o.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),t+dur);
+  g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(t+dur+.02);
+}
+function noise(dur=.12,gain=.10,freq=1400,type='lowpass'){
+  if(!audioCtx) return;
+  const n=Math.max(1,Math.floor(audioCtx.sampleRate*dur));
+  const buf=audioCtx.createBuffer(1,n,audioCtx.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++){const k=1-i/n;d[i]=(Math.random()*2-1)*k*k;}
+  const src=audioCtx.createBufferSource();src.buffer=buf;
+  const f=audioCtx.createBiquadFilter();f.type=type;f.frequency.value=freq;
+  const g=audioCtx.createGain();g.gain.value=gain;
+  src.connect(f);f.connect(g);g.connect(audioCtx.destination);src.start();
+}
+const sfx={
+  swing(mass){noise(.13,.045,900+400/mass,'bandpass');tone(420/mass,.10,'sine',.012,180/mass)},
+  hitLight(mass){noise(.10,.12,2600,'highpass');noise(.16,.10,320/mass,'lowpass');tone(150,.09,'square',.03,70)},
+  hitHeavy(mass){noise(.22,.18,1500,'lowpass');tone(78/Math.sqrt(mass),.30,'sawtooth',.05,36);tone(240,.08,'square',.03,90)},
+  block(){noise(.10,.10,2200,'bandpass');tone(300,.07,'triangle',.03,180)},
+  parry(){noise(.08,.09,4200,'highpass');tone(1180,.16,'square',.035,620);tone(680,.22,'sine',.03)},
+  clash(){noise(.26,.17,2000,'bandpass');tone(96,.24,'square',.05,42);tone(1500,.10,'square',.03,700)},
+  whiff(){noise(.09,.03,1800,'bandpass')},
+  step(mass){if(mass<1.8)return;noise(.16,.055*mass*.4,180,'lowpass');tone(52,.14,'sine',.02*mass*.3)},
+  power(form){tone(220+form*70,.16,'square',.03,120+form*40);noise(.2,.07,900,'bandpass')},
+  transform(){tone(80,.9,'sawtooth',.05,300);noise(.6,.07,700,'lowpass')},
+  land(){noise(.2,.12,240,'lowpass');tone(64,.2,'sine',.03,30)}
+};
+
+/* ------------------------------- boot ----------------------------------- */
+function init(){
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0x08090a); scene.fog=new THREE.FogExp2(0x08090a,0.014);
+  camera=new THREE.PerspectiveCamera(56,innerWidth/innerHeight,.1,240);
+  renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(innerWidth,innerHeight);
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  document.body.prepend(renderer.domElement);
+  renderer.domElement.tabIndex=0;
+  renderer.domElement.addEventListener('click',()=>{ if(running && document.pointerLockElement!==renderer.domElement) renderer.domElement.requestPointerLock?.(); });
+  document.addEventListener('pointerlockchange',()=>pointerLocked=document.pointerLockElement===renderer.domElement);
+  document.addEventListener('mousemove',e=>{
+    if(!pointerLocked||!running)return;
+    // Plain, predictable mouse look. No auto-lock snap, no acceleration curve.
+    cam.yaw  -= e.movementX*0.0022;
+    cam.pitch = clamp(cam.pitch - e.movementY*0.0016,-0.42,0.30);
+    if(Math.abs(e.movementX)>0.5) cam.mouseIdle=0;
+  });
+  window.addEventListener('resize',onResize);
+  buildArena();
+  player=createFighter('player',new THREE.Color(0xd5b35a),new THREE.Color(0xf5ecd9));
+  enemy =createFighter('enemy', new THREE.Color(0xb32632),new THREE.Color(0x241115));
+  scene.add(player.root,enemy.root);
+  resetMatch(); bindInput();
+  requestAnimationFrame(loop);
+  const playBtn=$('#playBtn'), boot=$('#bootStatus');
+  if(playBtn){playBtn.disabled=false;playBtn.textContent='ENTER DUEL';}
+  if(boot){boot.textContent='CORE READY';}
+}
+function onResize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)}
+
+function buildArena(){
+  scene.add(new THREE.HemisphereLight(0xbec7d1,0x1c1712,1.2));
+  const key=new THREE.DirectionalLight(0xffe5bd,2.7); key.position.set(6,16,9); key.castShadow=true;
+  key.shadow.mapSize.set(1024,1024);
+  key.shadow.camera.left=-30;key.shadow.camera.right=30;key.shadow.camera.top=30;key.shadow.camera.bottom=-30;
+  scene.add(key);
+  const rim=new THREE.DirectionalLight(0x6f87a6,1.2); rim.position.set(-11,8,-13); scene.add(rim);
+
+  const floorMat=new THREE.MeshStandardMaterial({color:0x191a1b,roughness:.8,metalness:.45});
+  const floor=new THREE.Mesh(new THREE.CylinderGeometry(arenaRadius,arenaRadius,1.0,64),floorMat);
+  floor.position.y=-.52; floor.receiveShadow=true; scene.add(floor);
+  const ringMat=new THREE.MeshStandardMaterial({color:0x504a40,metalness:.8,roughness:.4});
+  for(const r of [4.0,6.5,12.5,17.4]){const tor=new THREE.Mesh(new THREE.TorusGeometry(r,.055,6,128),ringMat);tor.rotation.x=Math.PI/2;tor.position.y=.015;scene.add(tor);}
+  const runeMat=new THREE.LineBasicMaterial({color:0x62594b,transparent:true,opacity:.45});
+  for(let i=0;i<8;i++){const a=i/8*TAU;const geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*3,.03,Math.sin(a)*3),new THREE.Vector3(Math.cos(a)*16,.03,Math.sin(a)*16)]);scene.add(new THREE.Line(geo,runeMat));}
+
+  const wallMat=new THREE.MeshStandardMaterial({color:0x202124,roughness:.72,metalness:.5});
+  for(let i=0;i<8;i++){
+    const a=i/8*TAU, x=Math.cos(a)*21.5, z=Math.sin(a)*21.5;
+    const g=new THREE.Group(); g.position.set(x,0,z); g.rotation.y=-a;
+    const base=new THREE.Mesh(new THREE.BoxGeometry(3.8,1.1,2.1),wallMat); base.position.y=.55;base.castShadow=true;base.receiveShadow=true;g.add(base);
+    const p=new THREE.Mesh(new THREE.BoxGeometry(1.7,8.5,1.5),wallMat);p.position.y=4.8;p.castShadow=true;g.add(p);
+    const cap=new THREE.Mesh(new THREE.ConeGeometry(1.7,2.2,4),new THREE.MeshStandardMaterial({color:0x3a3328,metalness:.65,roughness:.45}));cap.position.y=10;cap.rotation.y=Math.PI/4;g.add(cap);
+    g.userData.damage=0; g.userData.breakable=true; scene.add(g); cameraSolids.push(base,p);
+  }
+  const innerMat=new THREE.MeshStandardMaterial({color:0x111315,metalness:.68,roughness:.55});
+  for(let i=0;i<6;i++){
+    const a=i/6*TAU+Math.PI/6, x=Math.cos(a)*14.4, z=Math.sin(a)*14.4;
+    const ob=new THREE.Mesh(new THREE.BoxGeometry(1.8,3.4,1.8),innerMat);
+    ob.position.set(x,1.7,z);ob.rotation.y=-a;ob.castShadow=true;ob.userData.breakable=true;ob.userData.damage=0;
+    scene.add(ob);cameraSolids.push(ob);
+  }
+  const skyRing=new THREE.Mesh(new THREE.TorusGeometry(25,.22,6,80),new THREE.MeshBasicMaterial({color:0x40392f,transparent:true,opacity:.35}));
+  skyRing.rotation.x=Math.PI/2;skyRing.position.y=14;scene.add(skyRing);
+}
+
+/* ===========================================================================
+   FIGHTER RIG
+   A real hierarchy: root -> body -> hips -> chest -> shoulders -> elbows ->
+   hands -> weapon. Attacks drive hips, chest, shoulders, elbows AND legs, so
+   a swing is a whole body doing one thing instead of an arm rotating at the
+   waist. The blade lives in the hand, so it sweeps through the world.
+   ========================================================================= */
+function box(w,h,d,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.castShadow=true;return m}
+function cap(r,h,mat){const m=new THREE.Mesh(new THREE.CapsuleGeometry(r,h,5,10),mat);m.castShadow=true;return m}
+function cone(r,h,seg,mat){const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,seg),mat);m.castShadow=true;return m}
+
+function buildSword(mats,len,thick,glow){
+  const g=new THREE.Group();
+  const grip=new THREE.Mesh(new THREE.CylinderGeometry(.09*thick,.10*thick,.52*thick,10),mats.metal);
+  grip.rotation.x=Math.PI/2; grip.position.z=.16*thick; g.add(grip);
+  const guard=box(.62*thick,.14*thick,.20*thick,mats.metal); guard.position.z=-.12*thick; g.add(guard);
+  const blade=box(.15*thick,.30*thick,len,mats.blade); blade.position.z=-len*.5-.16*thick; g.add(blade);
+  const edge=new THREE.Mesh(new THREE.BoxGeometry(.05*thick,.32*thick,len*.98),new THREE.MeshBasicMaterial({color:glow}));
+  edge.position.set(.075*thick,0,-len*.5-.16*thick); g.add(edge);
+  const point=cone(.16*thick,.55*thick,4,mats.blade); point.rotation.x=-Math.PI/2; point.position.z=-len-.2*thick; g.add(point);
+  const tip=new THREE.Object3D(); tip.position.set(0,0,-len-.35*thick); g.add(tip);
+  const hilt=new THREE.Object3D(); hilt.position.set(0,0,-.1*thick); g.add(hilt);
+  g.userData={tip,hilt};
+  return g;
+}
+function buildGlaive(mats,glow){
+  const g=new THREE.Group();
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.075,.085,3.4,8),mats.metal);
+  shaft.rotation.x=Math.PI/2; shaft.position.z=-.9; g.add(shaft);
+  const head=box(.13,.40,1.9,mats.blade); head.position.z=-2.6; g.add(head);
+  const edge=new THREE.Mesh(new THREE.BoxGeometry(.05,.44,1.9),new THREE.MeshBasicMaterial({color:glow}));
+  edge.position.set(.06,0,-2.6); g.add(edge);
+  const crescent=new THREE.Mesh(new THREE.TorusGeometry(.52,.07,6,20,Math.PI*1.1),new THREE.MeshBasicMaterial({color:glow}));
+  crescent.position.set(0,0,-1.75); crescent.rotation.y=Math.PI/2; g.add(crescent);
+  const butt=cone(.16,.6,4,mats.metal); butt.rotation.x=Math.PI/2; butt.position.z=.85; g.add(butt);
+  const tip=new THREE.Object3D(); tip.position.set(0,0,-3.62); g.add(tip);
+  const hilt=new THREE.Object3D(); hilt.position.set(0,0,-.2); g.add(hilt);
+  g.userData={tip,hilt};
+  return g;
+}
+function buildGreatblade(mats,glow){
+  const g=new THREE.Group();
+  const grip=new THREE.Mesh(new THREE.CylinderGeometry(.16,.18,.9,10),mats.metal);
+  grip.rotation.x=Math.PI/2; grip.position.z=.3; g.add(grip);
+  const slab=box(.34,1.18,4.2,mats.blade); slab.position.z=-2.2; g.add(slab);
+  const core=new THREE.Mesh(new THREE.BoxGeometry(.40,.34,3.6),new THREE.MeshBasicMaterial({color:glow}));
+  core.position.z=-2.2; g.add(core);
+  for(const s of [-1,1]){
+    const fang=cone(.22,.9,4,mats.blade); fang.rotation.x=-Math.PI/2; fang.position.set(0,s*.62,-4.2); g.add(fang);
+  }
+  const brace=box(1.05,.30,.55,mats.metal); brace.position.z=-.25; g.add(brace);
+  const tip=new THREE.Object3D(); tip.position.set(0,0,-4.5); g.add(tip);
+  const hilt=new THREE.Object3D(); hilt.position.set(0,0,-.3); g.add(hilt);
+  g.userData={tip,hilt};
+  return g;
+}
+
+function createFighter(id,primary,secondary){
+  const mats={
+    suit  : new THREE.MeshStandardMaterial({color:id==='player'?0x25272c:0x261a1d,roughness:.62,metalness:.3}),
+    dark  : new THREE.MeshStandardMaterial({color:0x17181b,roughness:.7,metalness:.35}),
+    armor : new THREE.MeshStandardMaterial({color:primary,roughness:.38,metalness:.76}),
+    pale  : new THREE.MeshStandardMaterial({color:secondary,roughness:.55,metalness:.3}),
+    metal : new THREE.MeshStandardMaterial({color:0x7c786f,metalness:.9,roughness:.25}),
+    plate : new THREE.MeshStandardMaterial({color:id==='player'?0x3b3d44:0x3a2226,metalness:.72,roughness:.42}),
+    blade : new THREE.MeshStandardMaterial({color:0xc9c6bd,emissive:primary,emissiveIntensity:.7,metalness:.85,roughness:.16}),
+    energy: new THREE.MeshBasicMaterial({color:primary,transparent:true,opacity:.9})
+  };
+
+  const root=new THREE.Group();
+  const body=new THREE.Group(); root.add(body);
+
+  const hips=new THREE.Group(); hips.position.y=1.86; body.add(hips);
+  const pelvis=box(.86,.56,.60,mats.suit); hips.add(pelvis);
+
+  const legs={};
+  for(const side of ['L','R']){
+    const s=side==='L'?-1:1;
+    const leg=new THREE.Group(); leg.position.set(s*.33,-.14,0); hips.add(leg);
+    const thigh=cap(.20,.72,mats.dark); thigh.position.y=-.48; leg.add(thigh);
+    const knee=new THREE.Group(); knee.position.y=-.92; leg.add(knee);
+    const shin=cap(.165,.68,mats.dark); shin.position.y=-.42; knee.add(shin);
+    const foot=box(.36,.20,.74,mats.suit); foot.position.set(0,-.80,-.16); knee.add(foot);
+    legs[side]={leg,knee,thigh,shin,foot};
+  }
+
+  const chest=new THREE.Group(); chest.position.y=.24; hips.add(chest);
+  const torso=box(1.02,1.34,.66,mats.suit); torso.position.y=.62; chest.add(torso);
+  const collar=box(1.16,.26,.62,mats.dark); collar.position.y=1.24; chest.add(collar);
+  const head=new THREE.Group(); head.position.y=1.52; chest.add(head);
+  const skull=new THREE.Mesh(new THREE.SphereGeometry(.38,16,12),mats.pale); skull.scale.set(.92,1.12,.98); skull.castShadow=true; head.add(skull);
+  const visor=new THREE.Mesh(new THREE.BoxGeometry(.50,.14,.42),new THREE.MeshBasicMaterial({color:primary})); visor.position.set(0,.04,-.28); head.add(visor);
+
+  const arms={};
+  for(const side of ['L','R']){
+    const s=side==='L'?-1:1;
+    const sh=new THREE.Group(); sh.position.set(s*.72,1.06,0); chest.add(sh);
+    const upper=cap(.175,.50,mats.dark); upper.position.y=-.34; sh.add(upper);
+    const elbow=new THREE.Group(); elbow.position.y=-.68; sh.add(elbow);
+    const fore=cap(.155,.46,mats.armor); fore.position.y=-.32; elbow.add(fore);
+    const hand=new THREE.Group(); hand.position.y=-.64; elbow.add(hand);
+    const fist=box(.22,.24,.26,mats.pale); hand.add(fist);
+    arms[side]={sh,elbow,hand,upper,fore};
+  }
+
+  /* weapons: the silhouette changes with the form, so does the weapon */
+  const grip=new THREE.Group(); arms.R.hand.add(grip); grip.position.set(0,-.06,-.06);
+  const wSword=buildSword(mats,2.35,1.0,primary);
+  const wGlaive=buildGlaive(mats,primary);
+  const wGreat=buildGreatblade(mats,primary);
+  grip.add(wSword,wGlaive,wGreat);
+
+  /* ---------------- FORM II · ARMORED : mass, plates, pauldrons ---------- */
+  const gArmor=new THREE.Group(); body.add(gArmor);
+  const aChest=box(1.55,1.10,1.00,mats.armor); aChest.position.y=2.80; gArmor.add(aChest);
+  const aBack=box(1.20,.90,.52,mats.plate); aBack.position.set(0,2.95,.62); gArmor.add(aBack);
+  const aBelt=box(1.18,.40,.86,mats.plate); aBelt.position.y=1.80; gArmor.add(aBelt);
+  for(const s of [-1,1]){
+    const pauldron=box(.86,.72,1.06,mats.armor); pauldron.position.set(s*.98,3.16,0); pauldron.rotation.z=s*.18; gArmor.add(pauldron);
+    const spike=cone(.20,.60,4,mats.armor); spike.position.set(s*1.24,3.55,0); spike.rotation.z=s*.5; gArmor.add(spike);
+    const gaunt=box(.42,.70,.56,mats.plate); gaunt.position.set(s*.80,2.10,-.02); gArmor.add(gaunt);
+    const greave=box(.46,.86,.62,mats.plate); greave.position.set(s*.34,.78,-.04); gArmor.add(greave);
+  }
+  const helm=box(.62,.44,.70,mats.plate); helm.position.y=3.76; gArmor.add(helm);
+  const crest=box(.10,.50,.86,mats.armor); crest.position.y=4.06; gArmor.add(crest);
+
+  /* -------- FORM III · SIGNATURE : lean frame, halo, floating pylons ----- */
+  const gSig=new THREE.Group(); body.add(gSig);
+  const halo=new THREE.Mesh(new THREE.TorusGeometry(.98,.06,8,44),mats.energy); halo.position.set(0,3.80,1.32); halo.rotation.x=.95; gSig.add(halo);
+  const sigSpin=new THREE.Group(); sigSpin.position.set(0,3.25,1.25); gSig.add(sigSpin);
+  for(let i=0;i<4;i++){
+    const s=i<2?-1:1, k=i%2;
+    const pylon=box(.15,.22,1.45,mats.armor);
+    pylon.position.set(s*(1.20+k*.62),-.25+k*.62,.18+k*.30);
+    pylon.rotation.set(.22,s*(.42+k*.16),s*(.26+k*.14));
+    sigSpin.add(pylon);
+    const glowEdge=new THREE.Mesh(new THREE.BoxGeometry(.06,.26,1.35),mats.energy);
+    glowEdge.position.copy(pylon.position); glowEdge.rotation.copy(pylon.rotation); sigSpin.add(glowEdge);
+  }
+  for(const s of [-1,1]){
+    const fin=cone(.13,1.45,4,mats.armor); fin.position.set(s*.80,3.25,.52); fin.rotation.z=s*.62; fin.rotation.x=.30; gSig.add(fin);
+    const sash=box(.09,1.35,.34,mats.energy); sash.position.set(s*.56,1.75,.50); gSig.add(sash);
+  }
+  const diadem=new THREE.Mesh(new THREE.TorusGeometry(.44,.05,6,20),mats.energy); diadem.position.y=3.86; diadem.rotation.x=Math.PI/2; gSig.add(diadem);
+
+  /* ---- FORM IV · ASCENDED : wings, floating structures, altered gait ---- */
+  const gAsc=new THREE.Group(); body.add(gAsc);
+  for(const s of [-1,1]){
+    const wing=new THREE.Group();
+    wing.position.set(s*.78,3.20,.60);
+    wing.rotation.set(0,s*.58,s*.30);
+    gAsc.add(wing);
+    for(let i=0;i<4;i++){
+      const len=3.8-i*.62, a=1.05-i*.32;               // fan from up-back to back
+      const dir=new THREE.Vector3(0,Math.cos(a),Math.sin(a));
+      const feather=box(.15,.30,len,mats.armor);
+      feather.position.copy(dir).multiplyScalar(len*.5);
+      feather.rotation.x=a-Math.PI/2;
+      wing.add(feather);
+      const glowF=new THREE.Mesh(new THREE.BoxGeometry(.07,.34,len*.86),mats.energy);
+      glowF.position.copy(feather.position); glowF.rotation.copy(feather.rotation); wing.add(glowF);
+    }
+    const spur=cone(.20,1.35,4,mats.armor); spur.position.set(s*1.25,3.95,.35); spur.rotation.z=s*.75; spur.rotation.x=-.3; gAsc.add(spur);
+  }
+  const ascOrbit=new THREE.Group(); ascOrbit.position.y=2.6; gAsc.add(ascOrbit);
+  for(let i=0;i<5;i++){
+    const a=i/5*TAU; const orb=new THREE.Mesh(new THREE.OctahedronGeometry(.30),mats.energy);
+    orb.position.set(Math.cos(a)*2.1,Math.sin(a*1.7)*.8,Math.sin(a)*2.1); ascOrbit.add(orb);
+  }
+  const ascCrown=new THREE.Group(); ascCrown.position.y=4.0; gAsc.add(ascCrown);
+  for(let i=0;i<7;i++){const a=i/7*TAU;const sp=cone(.10,1.0,4,mats.energy);sp.position.set(Math.cos(a)*.5,.3,Math.sin(a)*.5);sp.rotation.z=Math.cos(a)*.45;sp.rotation.x=-Math.sin(a)*.45;ascCrown.add(sp)}
+  const trail=box(.5,2.6,.14,mats.energy); trail.position.set(0,1.9,.75); gAsc.add(trail);
+
+  /* ----- FORM V · FINAL : a different scale of being, war-rig silhouette -- */
+  const gFinal=new THREE.Group(); body.add(gFinal);
+  const coreBlock=box(1.95,1.65,1.35,mats.plate); coreBlock.position.y=2.80; gFinal.add(coreBlock);
+  const coreGlow=new THREE.Mesh(new THREE.SphereGeometry(.42,14,10),mats.energy); coreGlow.position.set(0,2.85,-.66); gFinal.add(coreGlow);
+  for(const s of [-1,1]){
+    const tower=box(1.05,1.85,1.35,mats.armor); tower.position.set(s*1.28,3.55,.05); tower.rotation.z=s*.12; gFinal.add(tower);
+    const stack=box(.34,1.9,.42,mats.plate); stack.position.set(s*1.42,4.65,.35); stack.rotation.z=s*.22; gFinal.add(stack);
+    const hipPlate=box(.78,1.25,.90,mats.plate); hipPlate.position.set(s*.72,1.55,0); gFinal.add(hipPlate);
+    const hoof=box(.62,.44,1.15,mats.plate); hoof.position.set(s*.36,.22,-.18); gFinal.add(hoof);
+    const horn=cone(.17,1.35,4,mats.armor); horn.position.set(s*.42,4.05,.05); horn.rotation.z=s*.42; gFinal.add(horn);
+  }
+  for(let i=0;i<7;i++){
+    const t=-.9+i*.3; const spine=cone(.16,1.7+Math.cos(t)*.5,4,mats.armor);
+    spine.position.set(Math.sin(t)*1.5,3.5+Math.cos(t)*1.1,1.05); spine.rotation.z=-Math.sin(t)*1.0; spine.rotation.x=-.5; gFinal.add(spine);
+  }
+  const aura=new THREE.Mesh(new THREE.SphereGeometry(2.4,20,14),new THREE.MeshBasicMaterial({color:primary,transparent:true,opacity:.06,side:THREE.BackSide}));
+  aura.position.y=2.4; gFinal.add(aura);
+
+  gArmor.visible=gSig.visible=gAsc.visible=gFinal.visible=false;
+  wGlaive.visible=wGreat.visible=false;
+
+  const f={
+    id,root,body,hips,chest,head,pelvis,torso,collar,grip,mats,primary,secondary,
+    legL:legs.L.leg,legR:legs.R.leg,kneeL:legs.L.knee,kneeR:legs.R.knee,
+    shL:arms.L.sh,shR:arms.R.sh,elL:arms.L.elbow,elR:arms.R.elbow,handL:arms.L.hand,handR:arms.R.hand,
+    armParts:[arms.L,arms.R],legParts:[legs.L,legs.R],
+    gArmor,gSig,gAsc,gFinal,sigSpin,ascOrbit,ascCrown,aura,halo,
+    weapons:{sword:wSword,glaive:wGlaive,great:wGreat}, weapon:wSword,
+    hp:1000,maxHp:1000,hpGhost:1000,energy:100,morph:0,form:0,
+    state:'idle',stateT:0,attack:null,chain:null,step:0,attackHit:false,attackWhiff:false,buffer:null,bufferAt:0,
+    velocity:new THREE.Vector3(),moveDir:new THREE.Vector3(),facing:0,gait:0,gaitPhase:0,
+    blocking:false,guardStart:0,parryUntil:0,dodgeUntil:0,invulnUntil:0,stunUntil:0,transformUntil:0,
+    hitDir:1,hitPower:0,dead:false,lastQ:0,hover:0,lastFootfall:0,
+    cur:null,prevTip:new THREE.Vector3(),tipReady:false,
+    ai:{timer:0,mode:'neutral',strafe:1,react:0,reactRoll:0,reacting:false,combo:[],aggression:.55,punish:0,pressure:0,nextMode:0,transformWait:0}
+  };
+  f.cur=Object.assign({},POSE_DEF);
+  setForm(f,0,true);
+  return f;
+}
+
+/* ===========================================================================
+   POSE SYSTEM
+   Every state (stance, run, guard, hit, attack step) writes the same pose
+   vocabulary, so transitions blend instead of snapping, and every attack can
+   move hips, chest, shoulders, elbows, legs and grip together.
+   ========================================================================= */
+const POSE_DEF={
+  bodyX:0,bodyZ:0,bodyLift:0,
+  hipsY:0,hipsX:0,hipsZ:0,hipsLift:0,
+  chestX:0,chestY:0,chestZ:0,
+  rSx:0,rSy:0,rSz:0,rE:0,
+  lSx:0,lSy:0,lSz:0,lE:0,
+  lLegX:0,lLegZ:0,lKnee:0,rLegX:0,rLegZ:0,rKnee:0,
+  gripX:0,gripY:0,gripZ:0,headY:0,headX:0
+};
+const POSE_KEYS=Object.keys(POSE_DEF);
+function pose(o){return o}
+function samplePose(keys,t){
+  let a=keys[0],b=keys[keys.length-1];
+  if(t<=a.t)return a.p;
+  if(t>=b.t)return b.p;
+  for(let i=0;i<keys.length-1;i++){ if(t>=keys[i].t&&t<=keys[i+1].t){a=keys[i];b=keys[i+1];break} }
+  const k=smooth(clamp((t-a.t)/Math.max(1e-4,b.t-a.t),0,1));
+  const out={};
+  for(const key of POSE_KEYS){
+    const av=a.p[key]!==undefined?a.p[key]:POSE_DEF[key];
+    const bv=b.p[key]!==undefined?b.p[key]:POSE_DEF[key];
+    out[key]=av+(bv-av)*k;
+  }
+  return out;
+}
+function blendPose(f,target,dt,rate){
+  const k=damp(rate,dt);
+  for(const key of POSE_KEYS){
+    const tv=target[key]!==undefined?target[key]:POSE_DEF[key];
+    f.cur[key]=f.cur[key]+(tv-f.cur[key])*k;
+  }
+}
+function writeRig(f){
+  const c=f.cur;
+  f.body.rotation.set(c.bodyX,0,c.bodyZ);
+  f.body.position.y=c.bodyLift+f.hover;
+  f.hips.rotation.set(c.hipsX,c.hipsY,c.hipsZ);
+  f.hips.position.y=1.86+c.hipsLift;
+  f.chest.rotation.set(c.chestX,c.chestY,c.chestZ);
+  // head keeps looking at the rival even while the torso winds up
+  f.head.rotation.set(c.headX-c.chestX*.55,clamp(c.headY-(c.chestY+c.hipsY)*.62,-1.1,1.1),0);
+  f.shR.rotation.set(c.rSx,c.rSy,c.rSz); f.elR.rotation.x=c.rE;
+  f.shL.rotation.set(c.lSx,c.lSy,c.lSz); f.elL.rotation.x=c.lE;
+  f.legL.rotation.set(c.lLegX,0,c.lLegZ); f.kneeL.rotation.x=c.lKnee;
+  f.legR.rotation.set(c.rLegX,0,c.rLegZ); f.kneeR.rotation.x=c.rKnee;
+  f.grip.rotation.set(c.gripX,c.gripY,c.gripZ);
+}
+
+/* Neutral duelling stance: bladed body, sword-side shoulder back, knees soft.
+   This is the pose everything returns to, which is why neutral reads as
+   "two fighters squared up" instead of "two idle mannequins". */
+const STANCE=pose({
+  chestY:-.30,hipsY:-.12,bodyX:.05,hipsLift:-.07,
+  rSx:.52,rSy:-.30,rSz:-.16,rE:1.18,
+  lSx:.42,lSy:.30,lSz:.22,lE:1.02,
+  lLegX:-.14,lKnee:.26,rLegX:.16,rKnee:.30,gripX:.55
+});
+const GUARD_POSE=pose({
+  chestY:.16,chestX:.12,hipsY:.06,bodyX:.10,hipsLift:-.16,
+  rSx:1.05,rSy:.02,rSz:-.26,rE:1.52,
+  lSx:1.14,lSy:.34,lSz:.30,lE:1.34,
+  lLegX:-.26,lKnee:.44,rLegX:.24,rKnee:.42,gripX:.30,gripZ:-.5
+});
+const HIT_LIGHT=pose({
+  chestX:-.30,bodyX:-.16,chestY:.24,hipsY:.10,hipsLift:-.12,
+  rSx:.22,rSy:-.52,rSz:.42,rE:.86,lSx:.44,lSy:.52,lSz:.52,lE:1.22,
+  lLegX:.24,lKnee:.18,rLegX:-.26,rKnee:.34,gripX:.5,headX:-.2
+});
+const HIT_HEAVY=pose({
+  chestX:-.52,bodyX:-.34,bodyZ:.22,chestY:.46,hipsY:.26,hipsLift:-.26,
+  rSx:-.20,rSy:-.85,rSz:.80,rE:.55,lSx:.30,lSy:.95,lSz:.95,lE:1.05,
+  lLegX:.52,lKnee:.30,rLegX:-.50,rKnee:.62,gripX:.3,headX:-.38
+});
+const DEAD_POSE=pose({
+  bodyX:-.9,bodyLift:-1.2,chestX:-.4,hipsLift:-.6,
+  rSx:-.4,rSy:-.6,rSz:.7,rE:.3,lSx:-.35,lSy:.6,lSz:.7,lE:.3,
+  lLegX:.7,lKnee:.9,rLegX:.5,rKnee:1.1
+});
+const TRANSFORM_POSE=pose({
+  bodyX:-.22,bodyLift:.35,chestX:-.30,hipsLift:.10,headX:-.35,
+  rSx:-.55,rSy:-.35,rSz:.95,rE:.35,lSx:-.55,lSy:.35,lSz:-.95,lE:.35,
+  lLegX:.30,lKnee:.55,rLegX:.28,rKnee:.52,gripX:1.2
+});
+const POWER_POSE=pose({
+  chestX:.20,chestY:-.18,hipsY:-.10,bodyX:.08,hipsLift:-.14,
+  rSx:1.35,rSy:.10,rSz:.05,rE:.22,lSx:1.20,lSy:.40,lSz:.30,lE:.90,
+  lLegX:.30,lKnee:.20,rLegX:-.28,rKnee:.42,gripX:-.1
+});
+
+/* ===========================================================================
+   FORMS — silhouette first. Each form swaps the attachment set, the weapon,
+   and the proportions of the base body, so you can name the form from the
+   outline alone.
+   ========================================================================= */
+const FORM_BUILD=[
+  {arm:[1.00,1.00],leg:[1.00,1.00],torso:[1.00,1.00,1.00],head:1.00,weapon:'sword',wScale:1.00,hover:0.00},
+  {arm:[1.42,1.05],leg:[1.36,1.00],torso:[1.30,1.02,1.28],head:1.06,weapon:'sword',wScale:1.20,hover:0.00},
+  {arm:[0.90,1.10],leg:[0.88,1.10],torso:[0.88,1.10,0.86],head:0.96,weapon:'glaive',wScale:1.00,hover:0.00},
+  {arm:[1.05,1.30],leg:[0.86,1.34],torso:[1.00,1.22,0.96],head:1.02,weapon:'glaive',wScale:1.26,hover:0.55},
+  {arm:[1.70,1.10],leg:[1.75,0.94],torso:[1.55,1.12,1.50],head:1.18,weapon:'great',wScale:1.05,hover:0.00}
+];
+function setForm(f,n,instant=false){
+  n=clamp(n,0,4); f.form=n;
+  const spec=FORMS[n], b=FORM_BUILD[n];
+  f.gArmor.visible=n===1;
+  f.gSig.visible  =n===2;
+  f.gAsc.visible  =n===3;
+  f.gFinal.visible=n===4;
+  for(const k in f.weapons) f.weapons[k].visible=false;
+  f.weapon=f.weapons[b.weapon]; f.weapon.visible=true; f.weapon.scale.setScalar(b.wScale);
+  for(const a of f.armParts){ a.upper.scale.set(b.arm[0],b.arm[1],b.arm[0]); a.fore.scale.set(b.arm[0],b.arm[1],b.arm[0]); }
+  for(const l of f.legParts){ l.thigh.scale.set(b.leg[0],b.leg[1],b.leg[0]); l.shin.scale.set(b.leg[0],b.leg[1],b.leg[0]); l.foot.scale.set(b.leg[0],1,b.leg[0]); }
+  f.torso.scale.set(b.torso[0],b.torso[1],b.torso[2]);
+  f.pelvis.scale.set(b.torso[0],1,b.torso[2]);
+  f.collar.scale.set(b.torso[0],1,1);
+  f.head.scale.setScalar(b.head);
+  f.mats.armor.emissive.copy(f.primary);
+  f.mats.armor.emissiveIntensity=[0,.05,.20,.32,.50][n];
+  f.mats.blade.emissiveIntensity=[.7,.8,1.0,1.2,1.5][n];
+  f.mats.energy.opacity=[.78,.82,.94,.96,1][n];
+  f.hoverTarget=b.hover;
+  if(instant){ f.body.scale.setScalar(spec.scale); f.hover=b.hover; }
+  if(f.id==='player'&&player) updateFormRail();
+}
+function updateFormRail(){document.querySelectorAll('.pip').forEach((p,i)=>{p.className='pip'+(i<player.form?' on':'')+(i===player.form?' current':'')})}
+
+/* ===========================================================================
+   COMBO CHAINS
+   LMB is one coherent physical light chain: slash, reverse slash, thrust,
+   strong finisher. RMB is a separate heavy chain: overhead, rotational power
+   cut, driving finisher. Each step ends near the start of the next, so the
+   chain flows as one movement instead of four disconnected swings.
+   ========================================================================= */
+const LIGHT_CHAIN=[
+  { name:'SLASH', dur:.42, hit:.48, dmg:48, kb:1.00, stop:.045, drive:{from:.20,to:.54,spd:6.0}, arc:'rl',
+    keys:[
+      {t:0,   p:{chestY:-.28,hipsY:-.10,rSx:.55,rSy:-.30,rSz:-.15,rE:1.15,lSx:.42,lSy:.30,lSz:.20,lE:1.00,gripX:.85,rLegX:.16,lLegX:-.14,rKnee:.3,lKnee:.26,hipsLift:-.06}},
+      {t:.28, p:{chestY:-.72,hipsY:-.34,bodyZ:.08,rSx:.30,rSy:-1.18,rSz:-.48,rE:1.78,lSx:.60,lSy:.62,lSz:.10,lE:1.35,gripX:1.25,rLegX:.36,rKnee:.44,lLegX:-.28,lKnee:.20,hipsLift:-.16}},
+      {t:.52, p:{chestY:.32,hipsY:.36,bodyZ:-.06,bodyX:.08,rSx:1.24,rSy:.38,rSz:.06,rE:.42,lSx:.34,lSy:-.18,lSz:.36,lE:1.00,gripX:.18,rLegX:-.24,rKnee:.18,lLegX:.32,lKnee:.26,hipsLift:-.04}},
+      {t:.74, p:{chestY:.60,hipsY:.52,rSx:1.06,rSy:1.08,rSz:.20,rE:.70,lSx:.30,lSy:-.30,lE:1.05,gripX:-.05,rLegX:-.32,lLegX:.34}},
+      {t:1,   p:{chestY:.04,hipsY:.12,rSx:.72,rSy:.44,rSz:-.04,rE:1.00,lSx:.46,lSy:.18,lSz:.26,lE:1.05,gripX:.62,rLegX:-.10,lLegX:.12,rKnee:.26,lKnee:.24}}
+    ]},
+  { name:'REVERSE', dur:.44, hit:.46, dmg:54, kb:1.05, stop:.045, drive:{from:.18,to:.52,spd:5.4}, arc:'lr',
+    keys:[
+      {t:0,   p:{chestY:.04,hipsY:.12,rSx:.72,rSy:.44,rE:1.00,lSx:.46,lSy:.18,lSz:.26,lE:1.05,gripX:.62}},
+      {t:.26, p:{chestY:.58,hipsY:.40,bodyZ:-.08,rSx:.58,rSy:1.28,rSz:.32,rE:1.52,lSx:.52,lSy:-.32,lE:1.24,gripX:1.05,lLegX:.32,lKnee:.3,rLegX:-.22,hipsLift:-.14}},
+      {t:.50, p:{chestY:-.48,hipsY:-.32,bodyZ:.06,bodyX:.06,rSx:1.26,rSy:-.58,rSz:-.12,rE:.38,lSx:.36,lSy:.34,lSz:.34,lE:1.00,gripX:.16,rLegX:.30,rKnee:.22,lLegX:-.26,hipsLift:-.04}},
+      {t:.72, p:{chestY:-.66,hipsY:-.48,rSx:1.10,rSy:-1.14,rSz:-.32,rE:.64,gripX:-.02,rLegX:.34,lLegX:-.3}},
+      {t:1,   p:{chestY:-.20,hipsY:-.10,rSx:.66,rSy:-.42,rE:1.00,lSx:.44,lSy:.26,lSz:.24,lE:1.02,gripX:.70,rLegX:.12,lLegX:-.1,rKnee:.28,lKnee:.24}}
+    ]},
+  { name:'THRUST', dur:.46, hit:.44, dmg:62, kb:1.15, stop:.055, drive:{from:.22,to:.56,spd:9.5}, arc:'th',
+    keys:[
+      {t:0,   p:{chestY:-.20,hipsY:-.10,rSx:.66,rSy:-.42,rE:1.00,lSx:.44,lSy:.26,lSz:.24,lE:1.02,gripX:.70}},
+      {t:.26, p:{chestY:-.62,hipsY:-.30,chestX:-.10,rSx:.32,rSy:-.58,rSz:-.22,rE:2.00,lSx:.60,lSy:.50,lSz:.14,lE:1.40,gripX:.35,rLegX:.34,rKnee:.50,lLegX:-.24,hipsLift:-.20}},
+      {t:.48, p:{chestY:.14,hipsY:.22,chestX:.20,rSx:1.46,rSy:.12,rSz:.02,rE:.04,lSx:.30,lSy:-.42,lSz:.20,lE:.62,gripX:0,lLegX:.48,lKnee:.14,rLegX:-.36,rKnee:.20,hipsLift:-.04}},
+      {t:.70, p:{chestX:.24,chestY:.18,rSx:1.40,rE:.14,lLegX:.34,rLegX:-.22}},
+      {t:1,   p:{chestY:-.16,chestX:.04,rSx:.70,rSy:-.30,rE:1.05,lSx:.44,lSy:.26,lSz:.24,lE:1.02,gripX:.66,lLegX:.10,rLegX:-.04,rKnee:.28,lKnee:.24}}
+    ]},
+  { name:'FINISHER', dur:.62, hit:.50, dmg:92, kb:2.10, stop:.085, finisher:true, drive:{from:.26,to:.58,spd:7.5}, arc:'ov',
+    keys:[
+      {t:0,   p:{chestY:-.16,rSx:.70,rSy:-.30,rE:1.05,gripX:.66}},
+      {t:.32, p:{chestY:-.58,hipsY:-.22,bodyX:-.14,rSx:2.58,rSy:-.46,rSz:-.34,rE:.52,lSx:2.14,lSy:.12,lSz:.26,lE:.70,gripX:1.42,hipsLift:.14,rLegX:.18,lLegX:-.32,lKnee:.34}},
+      {t:.54, p:{chestY:.30,hipsY:.26,chestX:.36,bodyX:.14,rSx:.52,rSy:.40,rSz:.10,rE:.26,lSx:.50,lSy:-.22,lE:.80,gripX:-.28,drive:1,hipsLift:-.26,lLegX:.52,lKnee:.56,rLegX:-.36,rKnee:.32}},
+      {t:.76, p:{chestX:.42,chestY:.34,rSx:.34,rSy:.52,rE:.34,hipsLift:-.30,lLegX:.46,rLegX:-.30}},
+      {t:1,   p:{chestY:-.12,chestX:.08,rSx:.70,rSy:-.26,rE:1.05,lSx:.44,lSy:.28,lSz:.22,lE:1.02,gripX:.62,hipsLift:-.08,rKnee:.30,lKnee:.26}}
+    ]}
+];
+const HEAVY_CHAIN=[
+  { name:'OVERHEAD', dur:.66, hit:.48, dmg:86, kb:1.90, stop:.075, drive:{from:.28,to:.56,spd:6.2}, arc:'ov',
+    keys:[
+      {t:0,   p:{chestY:-.28,hipsY:-.12,rSx:.52,rSy:-.30,rE:1.18,lSx:.42,lSy:.30,lSz:.22,lE:1.02,gripX:.85}},
+      {t:.34, p:{chestY:-.34,bodyX:-.24,rSx:2.78,rSy:-.26,rSz:-.20,rE:.32,lSx:2.42,lSy:.14,lSz:.20,lE:.48,gripX:1.52,hipsLift:.12,rLegX:.24,lLegX:-.30,lKnee:.38}},
+      {t:.52, p:{chestX:.44,bodyX:.20,chestY:.04,hipsY:.08,rSx:.42,rSy:.04,rE:.16,lSx:.62,lSy:-.14,lE:.70,gripX:-.48,hipsLift:-.34,lLegX:.58,lKnee:.62,rLegX:-.42,rKnee:.36}},
+      {t:.78, p:{chestX:.48,rSx:.28,rE:.20,hipsLift:-.36,lLegX:.50,rLegX:-.36}},
+      {t:1,   p:{chestY:-.22,chestX:.12,rSx:.60,rSy:-.28,rE:1.10,lSx:.46,lSy:.26,lSz:.24,lE:1.02,gripX:.80,hipsLift:-.10,rKnee:.30,lKnee:.26}}
+    ]},
+  { name:'ROTATION', dur:.74, hit:.54, dmg:104, kb:2.30, stop:.085, drive:{from:.30,to:.62,spd:5.6}, arc:'rl',
+    keys:[
+      {t:0,   p:{chestY:-.22,chestX:.12,rSx:.60,rSy:-.28,rE:1.10,gripX:.80}},
+      {t:.32, p:{chestY:-1.05,hipsY:-.58,bodyZ:.12,rSx:.52,rSy:-1.52,rSz:-.62,rE:1.62,lSx:.72,lSy:.82,lE:1.32,gripX:1.22,rLegX:.42,rKnee:.52,lLegX:-.32,hipsLift:-.22}},
+      {t:.56, p:{chestY:.58,hipsY:.66,bodyZ:-.12,bodyX:.06,rSx:1.32,rSy:.78,rSz:.26,rE:.18,lSx:.42,lSy:-.52,lSz:.30,lE:.92,gripX:.04,rLegX:-.42,lLegX:.48,lKnee:.22,hipsLift:-.06}},
+      {t:.80, p:{chestY:1.00,hipsY:1.05,rSx:1.16,rSy:1.44,rSz:.36,rE:.46,rLegX:-.30,lLegX:.30}},
+      {t:1,   p:{chestY:.10,hipsY:.18,rSx:.70,rSy:.30,rE:1.02,lSx:.44,lSy:.24,lSz:.24,lE:1.02,gripX:.72,rKnee:.30,lKnee:.26}}
+    ]},
+  { name:'DRIVE', dur:.86, hit:.50, dmg:142, kb:3.20, stop:.115, finisher:true, drive:{from:.34,to:.66,spd:13.0}, arc:'th',
+    keys:[
+      {t:0,   p:{chestY:.10,hipsY:.18,rSx:.70,rSy:.30,rE:1.02,gripX:.72}},
+      {t:.36, p:{chestY:-.72,hipsY:-.42,chestX:-.18,rSx:.24,rSy:-.72,rSz:-.30,rE:2.10,lSx:.62,lSy:.52,lE:1.42,gripX:.42,hipsLift:-.32,rLegX:.48,rKnee:.62,lLegX:-.32,lKnee:.18}},
+      {t:.56, p:{chestY:.10,hipsY:.26,chestX:.32,bodyX:.12,rSx:1.52,rSy:.06,rE:.02,lSx:.34,lSy:-.46,lSz:.22,lE:.50,gripX:-.06,lLegX:.62,lKnee:.16,rLegX:-.48,rKnee:.24,hipsLift:-.12}},
+      {t:.82, p:{chestX:.38,rSx:1.46,rE:.10,lLegX:.24,rLegX:-.22,hipsLift:-.06}},
+      {t:1,   p:{chestY:-.12,chestX:.06,rSx:.70,rSy:-.26,rE:1.05,lSx:.44,lSy:.28,lSz:.22,lE:1.02,gripX:.66,rKnee:.30,lKnee:.26}}
+    ]}
+];
+function chainOf(type){return type==='heavy'?HEAVY_CHAIN:LIGHT_CHAIN}
+
+/* ===========================================================================
+   LOCOMOTION
+   Movement direction and body facing are two separate systems. The gait is
+   built from the LOCAL velocity, so a fighter strafing right while facing the
+   rival actually side-steps instead of moonwalking.
+   ========================================================================= */
+function localVelocity(f){
+  const v=f.velocity.clone(); v.y=0;
+  const c=Math.cos(-f.facing), s=Math.sin(-f.facing);
+  return new THREE.Vector3(v.x*c-v.z*s,0,v.x*s+v.z*c); // z<0 = forward, x>0 = fighter's right
+}
+function locomotionPose(f,dt){
+  const spec=FORMS[f.form];
+  const lv=localVelocity(f), sp=Math.hypot(lv.x,lv.z);
+  const norm=clamp(sp/spec.move,0,1.3);
+  const fwd=sp>.05?-lv.z/sp:0, side=sp>.05?lv.x/sp:0;
+  const hoverForm=f.form===3;
+  const cadence=hoverForm?4.6:(9.6-spec.mass*1.0);
+  f.gait+=dt*(norm>.04?cadence*clamp(norm,.35,1.25):0);
+  if(norm<=.04) f.gait+=dt*1.6; // idle breathing keeps the stance alive
+  const sw=Math.sin(f.gait), sw2=Math.sin(f.gait*2);
+  const stride=(hoverForm?.22:.62)*norm;
+  const p={};
+  for(const k of POSE_KEYS)p[k]=STANCE[k]!==undefined?STANCE[k]:0;
+  // forward/back leg swing + lateral leg crossing for strafes
+  p.lLegX=STANCE.lLegX+sw*stride*fwd - Math.abs(sw)*stride*.25*Math.max(0,-fwd);
+  p.rLegX=STANCE.rLegX-sw*stride*fwd + Math.abs(sw)*stride*.25*Math.max(0,-fwd);
+  p.lLegZ=-sw*stride*.55*side;
+  p.rLegZ=-sw*stride*.55*side;
+  p.lKnee=STANCE.lKnee+Math.max(0,-sw)*stride*.9;
+  p.rKnee=STANCE.rKnee+Math.max(0, sw)*stride*.9;
+  p.hipsLift=STANCE.hipsLift-Math.abs(sw2)*.055*norm-(hoverForm?0:0)-norm*.05;
+  p.hipsY=STANCE.hipsY+sw*.14*norm*fwd+side*.16;
+  p.chestY=STANCE.chestY-sw*.10*norm*fwd-side*.10;
+  // lean into the movement: heavier forms lean less but bob more
+  const leanK=1.15/Math.sqrt(spec.mass);
+  p.bodyX=STANCE.bodyX+fwd*norm*.13*leanK;
+  p.bodyZ=side*norm*.11*leanK;
+  p.rSx=STANCE.rSx+sw*.10*norm; p.lSx=STANCE.lSx-sw*.26*norm;
+  p.rE=STANCE.rE+Math.abs(sw)*.10*norm;
+  // heavy footfalls for the big forms: dust + shake on plant
+  if(spec.mass>1.8&&norm>.25){
+    const phase=Math.sin(f.gait);
+    if(phase*f.gaitPhase<0){ footfall(f); }
+    f.gaitPhase=phase;
+  }
+  return p;
+}
+function footfall(f){
+  const now=performance.now(); if(now-f.lastFootfall<170)return; f.lastFootfall=now;
+  const s=FORMS[f.form].scale;
+  spawnDust(f.root.position.clone(),0x6b6355,4+Math.round(s*2),.7*s);
+  if(FORMS[f.form].mass>2.4) cam.shake=Math.max(cam.shake,.05*s);
+  sfx.step(FORMS[f.form].mass);
+}
+
+/* ===========================================================================
+   COMBAT
+   Contact is decided by where the blade actually is: the weapon's hilt->tip
+   segment is swept against the rival's body capsule during the strike window.
+   If the sword looks like it went through them, it hit them.
+   ========================================================================= */
+function forwardOf(f){return new THREE.Vector3(-Math.sin(f.facing),0,-Math.cos(f.facing))}
+function bodyRadius(f){return .80*FORMS[f.form].scale}
+function targetSegment(f){
+  const s=FORMS[f.form].scale, p=f.root.position;
+  return [new THREE.Vector3(p.x,p.y+.75*s+f.hover,p.z),new THREE.Vector3(p.x,p.y+3.45*s+f.hover,p.z)];
+}
+function segSegDist(p1,q1,p2,q2){
+  const d1=q1.clone().sub(p1), d2=q2.clone().sub(p2), r=p1.clone().sub(p2);
+  const a=d1.dot(d1), e=d2.dot(d2), fdot=d2.dot(r);
+  let s,t;
+  if(a<=1e-6&&e<=1e-6)return r.length();
+  if(a<=1e-6){s=0;t=clamp(fdot/e,0,1);}
+  else{
+    const c=d1.dot(r);
+    if(e<=1e-6){t=0;s=clamp(-c/a,0,1);}
+    else{
+      const b=d1.dot(d2), den=a*e-b*b;
+      s=den!==0?clamp((b*fdot-c*e)/den,0,1):0;
+      t=(b*s+fdot)/e;
+      if(t<0){t=0;s=clamp(-c/a,0,1);}else if(t>1){t=1;s=clamp((b-c)/a,0,1);}
+    }
+  }
+  const c1=p1.clone().addScaledVector(d1,s), c2=p2.clone().addScaledVector(d2,t);
+  return {dist:c1.distanceTo(c2),point:c1.lerp(c2,.5)};
+}
+function bladePoints(f){
+  const w=f.weapon.userData;
+  return [w.hilt.getWorldPosition(new THREE.Vector3()),w.tip.getWorldPosition(new THREE.Vector3())];
+}
+
+function canAct(f){const now=performance.now();return !f.dead&&now>f.stunUntil&&now>f.transformUntil&&f.state!=='dodge'&&f.state!=='power'}
+function tryAttack(f,type){
+  const now=performance.now();
+  if(f.dead||intro>0)return;
+  if(f.state==='attack'){
+    const a=f.chain[f.step], t=f.stateT/attackDur(f,a);
+    if(t>.22){ f.buffer=type; f.bufferAt=now; }
+    return;
+  }
+  if(!canAct(f)||f.blocking)return;
+  startAttack(f,type,0);
+}
+function attackDur(f,a){return a.dur*FORMS[f.form].atk}
+function startAttack(f,type,step){
+  f.state='attack'; f.attackType=type; f.chain=chainOf(type); f.step=clamp(step,0,f.chain.length-1);
+  f.stateT=0; f.attackHit=false; f.buffer=null; f.tipReady=false;
+  const opp=f===player?enemy:player;
+  f.facing=targetYaw(f,opp); // commit the swing at the rival, never away from them
+  sfx.swing(FORMS[f.form].mass);
+  if(f===player)showCombo(f);
+}
+function advanceAttack(f,type){
+  if(type===f.attackType){
+    if(f.step<f.chain.length-1) startAttack(f,type,f.step+1);
+    else { endAttack(f); }
+  } else startAttack(f,type,0);
+}
+function endAttack(f){
+  f.state='idle'; f.stateT=0; f.chain=null; f.attackType=null; f.buffer=null;
+  if(f===player)hideCombo();
+}
+function updateAttack(f,dt,now){
+  const a=f.chain[f.step], dur=attackDur(f,a), t=clamp(f.stateT/dur,0,1);
+  f.stateT+=dt;
+  const opp=f===player?enemy:player;
+  faceSmooth(f,opp,dt,20); // stays presented at the rival through the whole swing
+  blendPose(f,samplePose(a.keys,t),dt,42);
+
+  // forward commitment so a swing actually travels into the opponent
+  const d=a.drive;
+  if(t>=d.from&&t<=d.to){
+    const k=Math.sin((t-d.from)/Math.max(.01,d.to-d.from)*Math.PI);
+    const gap=f.root.position.distanceTo(opp.root.position)-(bodyRadius(f)+bodyRadius(opp))-.15;
+    const scaleK=Math.sqrt(FORMS[f.form].scale);
+    const spd=d.spd*scaleK*k*clamp(gap*.55,0,1);
+    f.velocity.lerp(forwardOf(f).multiplyScalar(spd),damp(16,dt));
+  }
+
+  // push this frame's pose into the rig first, so the blade test reads the
+  // sword where it is right now instead of one frame behind
+  writeRig(f); f.root.updateMatrixWorld(true);
+
+  // strike window: swept blade contact
+  const winA=a.hit-.10, winB=a.hit+.16;
+  if(t>=winA&&t<=winB&&!f.attackHit) resolveContact(f,a,now);
+  if(t>=winB&&!f.attackHit&&!f.attackWhiffFlag){ f.attackWhiffFlag=true; f.whiffAt=now; sfx.whiff(); }
+
+  const canCancel=f.attackHit||t>a.hit+.14;
+  if(f.buffer&&t>=.58&&canCancel){ const b=f.buffer; f.attackWhiffFlag=false; advanceAttack(f,b); return; }
+  if(f.stateT>=dur){ f.attackWhiffFlag=false; if(f.buffer){const b=f.buffer;advanceAttack(f,b);} else endAttack(f); }
+}
+function resolveContact(f,a,now){
+  const target=f===player?enemy:player;
+  if(target.dead)return;
+  const [h,tip]=bladePoints(f);
+  const [tA,tB]=targetSegment(target);
+  const hit=segSegDist(h,tip,tA,tB);
+  const radius=bodyRadius(target)+.34*FORMS[f.form].scale;
+  let contact=null;
+  if(hit.dist<=radius) contact=hit.point;
+  if(!contact&&f.tipReady){ // fast swings can skip past a body between frames
+    const swept=segSegDist(f.prevTip,tip,tA,tB);
+    if(swept.dist<=radius*.9) contact=swept.point;
+  }
+  if(!contact){
+    // generous sweet-spot backup so visually-connected swings never read as whiffs
+    const dv=target.root.position.clone().sub(f.root.position).setY(0);
+    const dist=dv.length(), fwd=forwardOf(f);
+    if(dist<=FORMS[f.form].reach*.92+bodyRadius(target)&&fwd.dot(dv.normalize())>.55){
+      const tNow=f.stateT/attackDur(f,a);
+      if(Math.abs(tNow-a.hit)<.05) contact=f.root.position.clone().lerp(target.root.position,.55).setY(1.9*FORMS[target.form].scale);
+    }
+  }
+  if(!contact)return;
+  f.attackHit=true;
+  // both blades live in the same window -> clash
+  if(target.state==='attack'){
+    const ta=target.chain[target.step], tt=target.stateT/attackDur(target,ta);
+    if(!target.attackHit&&tt>=ta.hit-.14&&tt<=ta.hit+.16){ clash(f,target,contact); return; }
+  }
+  if(now<target.invulnUntil){
+    spawnBurst(contact,0xffffff,10,3,.5); sfx.whiff(); target.ai.wake=true;
+    showStatus(target===player?'EVADE':'RIVAL EVADES'); return;
+  }
+  dealHit(f,target,a,contact);
+}
+
+function dealHit(attacker,target,a,contact){
+  const now=performance.now();
+  const mass=FORMS[attacker.form].mass;
+  const heavy=a.dmg>=80;
+  const dv=target.root.position.clone().sub(attacker.root.position).setY(0).normalize();
+  const guardFacing=forwardOf(target).dot(dv)<-.25;
+
+  if(target.blocking&&guardFacing){
+    if(now<=target.parryUntil){ parry(target,attacker,contact); return; }
+    const dmg=a.dmg*FORMS[attacker.form].dmg*.22;
+    target.hp=clamp(target.hp-dmg,0,target.maxHp);
+    target.velocity.addScaledVector(dv,(1.8+a.kb)*FORMS[target.form].resist);
+    attacker.velocity.addScaledVector(dv,-(2.2+a.kb*.6));
+    target.stunUntil=now+90; target.morph=clamp(target.morph+dmg*.5,0,100);
+    attacker.buffer=null; attacker.state='hit'; attacker.stateT=0; attacker.hitPower=0;
+    attacker.hitDir=-(target.hitDir||1);
+    attacker.stunUntil=Math.max(attacker.stunUntil,now+(heavy?200:140));
+    target.ai.wake=true;
+    hitFreeze=Math.max(hitFreeze,.035); cam.shake=Math.max(cam.shake,.07);
+    spawnBurst(contact,0xfff3cf,14,5,.6); spawnRing(contact,0xffffff,1.1);
+    sfx.block(); showStatus(target===player?'BLOCK':'RIVAL BLOCKS'); updateHUD(); return;
+  }
+
+  // repeated hits stun less and push further, so nobody gets juggled forever
+  if(now<target.stunChainUntil)target.stunChain=(target.stunChain||1)+1; else target.stunChain=1;
+  const chainK=Math.max(.45,1-.15*(target.stunChain-1));
+  const kbK=1+.16*(target.stunChain-1);
+
+  const dmg=a.dmg*FORMS[attacker.form].dmg;
+  target.hp=clamp(target.hp-dmg,0,target.maxHp);
+  attacker.morph=clamp(attacker.morph+dmg*.40,0,100);
+  target.morph=clamp(target.morph+dmg*.22,0,100);
+
+  // knockback carries the attacker's mass, resisted by the victim's mass
+  const force=(2.4+a.kb*2.6)*(0.6+mass*.55)*FORMS[target.form].resist*kbK;
+  target.velocity.addScaledVector(dv,force);
+  attacker.velocity.addScaledVector(dv,.9); // follow-through pushes the attacker in too
+  target.buffer=null; target.state='hit'; target.stateT=0;
+  target.stunUntil=now+(heavy?260+a.kb*60:150+a.kb*45)*(a.finisher?1.25:1)*chainK;
+  target.stunChainUntil=target.stunUntil+520;
+  target.ai.wake=true; target.lastHitAt=now;
+  attacker.ai.pressUntil=now+1300; // landing a hit invites you to keep going
+  target.hitPower=heavy?1:0;
+  target.hitDir=Math.sign(forwardOf(target).clone().cross(dv).y)||1;
+
+  const stop=a.stop*(1+mass*.22);
+  hitFreeze=Math.max(hitFreeze,stop);
+  cam.shake=Math.max(cam.shake,(heavy?.26:.13)*(0.7+mass*.3));
+  cam.pullback=Math.max(cam.pullback,heavy?1.5:.6);
+  spawnBurst(contact,attacker.primary,heavy?26:14,heavy?9:5,heavy?1:.65);
+  spawnBurst(contact,0xffffff,heavy?14:8,heavy?11:6,.45);
+  spawnImpactFlash(contact,attacker.primary,heavy?1.5:.9);
+  if(heavy)spawnRing(contact,attacker.primary,2.0+mass*.5);
+  if(a.finisher){spawnShockwave(target.root.position.clone(),attacker.primary,2.4+mass*.9);environmentBlast(target.root.position,3+mass,dmg)}
+  heavy?sfx.hitHeavy(mass):sfx.hitLight(mass);
+  if(target===player)hudFlash(heavy?.85:.45);
+  if(target.hp<=0)killFighter(target,attacker);
+  updateHUD();
+}
+function parry(def,atk,contact){
+  const now=performance.now();
+  atk.stunUntil=now+560; atk.state='hit'; atk.stateT=0; atk.hitPower=1;
+  atk.buffer=null;
+  atk.velocity.addScaledVector(atk.root.position.clone().sub(def.root.position).setY(0).normalize(),6.5);
+  hitFreeze=Math.max(hitFreeze,.13); cam.shake=Math.max(cam.shake,.30); cam.pullback=Math.max(cam.pullback,1.3);
+  def.morph=clamp(def.morph+18,0,100);
+  spawnBurst(contact,def.primary,34,9,1.1); spawnBurst(contact,0xffffff,20,12,.6); spawnRing(contact,0xffffff,2.6);
+  spawnImpactFlash(contact,0xffffff,1.8);
+  sfx.parry(); showStatus(def===player?'PARRY':'RIVAL PARRY'); updateHUD();
+}
+function clash(a,b,contact){
+  const now=performance.now();
+  a.stunUntil=b.stunUntil=now+380;
+  a.state=b.state='hit'; a.stateT=b.stateT=0; a.hitPower=b.hitPower=1; a.buffer=b.buffer=null;
+  const dir=b.root.position.clone().sub(a.root.position).setY(0).normalize();
+  const f1=5.5*FORMS[a.form].resist, f2=5.5*FORMS[b.form].resist;
+  a.velocity.addScaledVector(dir,-f1); b.velocity.addScaledVector(dir,f2);
+  a.morph=clamp(a.morph+12,0,100); b.morph=clamp(b.morph+12,0,100);
+  hitFreeze=Math.max(hitFreeze,.15); cam.shake=Math.max(cam.shake,.34); cam.pullback=Math.max(cam.pullback,1.8);
+  spawnBurst(contact,0xffffff,44,13,1.2); spawnRing(contact,0xffffff,3.2); spawnImpactFlash(contact,0xffffff,2.0);
+  sfx.clash(); showStatus('CLASH'); updateHUD();
+}
+function killFighter(f,winner){
+  f.dead=true; f.state='dead'; f.stateT=0; f.velocity.multiplyScalar(.4);
+  spawnBurst(f.root.position.clone().setY(2*FORMS[f.form].scale),f.primary,40,8,1.2);
+  cam.shake=Math.max(cam.shake,.4);
+  setTimeout(()=>endMatch(winner===player),900);
+}
+
+/* --------------------------- defensive options -------------------------- */
+function beginGuard(f){
+  if(intro>0||!canAct(f)||f.state==='attack')return;
+  f.blocking=true; f.state='guard'; f.guardStart=performance.now(); f.parryUntil=f.guardStart+200;
+}
+function endGuard(f){ f.blocking=false; if(f.state==='guard'){f.state='idle';f.stateT=0} }
+function tryDodge(f){
+  if(intro>0||!canAct(f)||f.dead)return;
+  const now=performance.now();
+  f.blocking=false; f.state='dodge'; f.stateT=0;
+  const mass=FORMS[f.form].mass;
+  f.dodgeUntil=now+300+mass*45; f.invulnUntil=now+220+mass*20;
+  let d=f===player?playerMoveVector():f.moveDir.clone();
+  if(d.lengthSq()<.01)d=forwardOf(f).multiplyScalar(-1);
+  d.y=0; d.normalize();
+  f.velocity.copy(d.multiplyScalar(13.5+FORMS[f.form].scale*1.6));
+  f.dodgeLocal=localVelocity(f).normalize();
+  noise(.14,.05,900,'bandpass'); tone(200,.09,'sine',.02,110);
+  if(mass>2)cam.shake=Math.max(cam.shake,.08);
+}
+function tryTransform(f){
+  if(intro>0||!canAct(f)||f.form>=4||f.morph<100)return;
+  f.morph=0; f.state='transform'; f.stateT=0; f.blocking=false;
+  f.transformUntil=performance.now()+1150;
+  f.velocity.multiplyScalar(.2);
+  spawnBurst(f.root.position.clone().setY(2.2*FORMS[f.form].scale),f.primary,46,8,1.4);
+  sfx.transform();
+  setTimeout(()=>{
+    if(f.dead)return;
+    setForm(f,f.form+1);
+    spawnShockwave(f.root.position.clone(),f.primary,3.2+f.form*1.3);
+    spawnBurst(f.root.position.clone().setY(2.4*FORMS[f.form].scale),f.primary,50,10,1.6);
+    cam.shake=Math.max(cam.shake,.26+.06*f.form);
+    cam.pullback=Math.max(cam.pullback,2.2);
+    if(f.id==='player')showTransformBanner(f);
+    updateHUD();
+  },560);
+}
+function showTransformBanner(f){const b=$('#transformBanner');$('#tbRoman').textContent='FORM '+roman[f.form];$('#tbName').textContent=FORMS[f.form].name;b.style.display='grid';clearTimeout(showTransformBanner.t);showTransformBanner.t=setTimeout(()=>b.style.display='none',950)}
+function tryPower(f){
+  const now=performance.now();
+  if(intro>0||!canAct(f)||f.blocking||now-f.lastQ<700)return;
+  const cost=[24,28,34,40,48][f.form];
+  if(f.energy<cost)return;
+  f.energy-=cost; f.lastQ=now; f.state='power'; f.stateT=0; f.powerUntil=now+440;
+  const target=f===player?enemy:player;
+  f.facing=targetYaw(f,target);
+  sfx.power(f.form);
+  if(f.form<=1) setTimeout(()=>{if(!f.dead)launchProjectile(f,target,f.form===1?30:24,f.form===1?120:88)},150);
+  else if(f.form===2) setTimeout(()=>{if(!f.dead)launchProjectile(f,target,34,150,true)},130);
+  else setTimeout(()=>{if(!f.dead)areaStrike(f,target,f.form===3?4.2:6.4,f.form===3?180:250)},200);
+}
+
+/* ===========================================================================
+   FIGHTER UPDATE — facing and movement are deliberately separate systems
+   ========================================================================= */
+function targetYaw(f,t){const d=t.root.position.clone().sub(f.root.position);return Math.atan2(-d.x,-d.z)}
+function faceSmooth(f,t,dt,rate){f.facing=angleLerp(f.facing,targetYaw(f,t),damp(rate,dt));f.root.rotation.y=f.facing}
+function updateFacing(f,dt){
+  const opp=f===player?enemy:player;
+  const dist=f.root.position.distanceTo(opp.root.position);
+  const engage=12+FORMS[f.form].scale*2.5;
+  const sp=f.velocity.length();
+  let want;
+  if(dist<engage||sp<2.5) want=targetYaw(f,opp);           // duel facing: presented at the rival
+  else want=Math.atan2(-f.velocity.x,-f.velocity.z);        // long sprints face where you run
+  f.facing=angleLerp(f.facing,want,damp(dist<engage?16:9,dt));
+  f.root.rotation.y=f.facing;
+}
+function applyVelocity(f,dt,dampK){
+  f.root.position.addScaledVector(f.velocity,dt);
+  const r=Math.hypot(f.root.position.x,f.root.position.z);
+  const max=arenaRadius-1.2-FORMS[f.form].scale*.7;
+  if(r>max){
+    const nx=f.root.position.x/r,nz=f.root.position.z/r;
+    f.root.position.x=nx*max; f.root.position.z=nz*max;
+    const dot=f.velocity.x*nx+f.velocity.z*nz;
+    if(dot>0){f.velocity.x-=dot*nx;f.velocity.z-=dot*nz;environmentImpact(f,Math.min(280,Math.abs(dot)*18))}
+  }
+  if(dampK<1)f.velocity.multiplyScalar(Math.pow(dampK,dt*60));
+}
+function separateFighters(a,b){
+  const d=b.root.position.clone().sub(a.root.position); d.y=0;
+  const dist=d.length()||.0001, min=bodyRadius(a)+bodyRadius(b);
+  if(dist>=min)return;
+  const n=d.divideScalar(dist), push=(min-dist);
+  const ma=FORMS[a.form].mass, mb=FORMS[b.form].mass, sum=ma+mb;
+  a.root.position.addScaledVector(n,-push*(mb/sum));
+  b.root.position.addScaledVector(n, push*(ma/sum));
+}
+function mirrorPose(p,sign){
+  if(sign>=0)return p;
+  const o={};
+  for(const k of POSE_KEYS)o[k]=p[k]!==undefined?p[k]:POSE_DEF[k];
+  o.chestY*=-1;o.hipsY*=-1;o.bodyZ*=-1;o.headY*=-1;o.hipsZ*=-1;o.chestZ*=-1;
+  return o;
+}
+function updateFighter(f,dt,now){
+  const spec=FORMS[f.form];
+  f.energy=clamp(f.energy+dt*(9-f.form*.6),0,100);
+  f.body.scale.lerp(new THREE.Vector3(spec.scale,spec.scale,spec.scale),damp(6,dt));
+  f.hover=lerp(f.hover,f.hoverTarget||0,damp(4,dt));
+  f.hpGhost=lerp(f.hpGhost,f.hp,damp(3.2,dt));
+  animateFormExtras(f,dt,now);
+
+  if(f.dead){ blendPose(f,DEAD_POSE,dt,5); applyVelocity(f,dt,.80); writeRig(f); return; }
+
+  switch(f.state){
+    case 'transform': {
+      f.stateT+=dt;
+      faceSmooth(f,f===player?enemy:player,dt,26);
+      const k=Math.sin(clamp(f.stateT/1.15,0,1)*Math.PI);
+      const p=Object.assign({},TRANSFORM_POSE);
+      p.bodyLift=TRANSFORM_POSE.bodyLift*k; p.bodyX=TRANSFORM_POSE.bodyX*k;
+      blendPose(f,p,dt,10);
+      f.velocity.multiplyScalar(Math.pow(.80,dt*60));
+      applyVelocity(f,dt,.8);
+      if(now>=f.transformUntil){f.state='idle';f.stateT=0}
+      break;
+    }
+    case 'attack': updateAttack(f,dt,now); applyVelocity(f,dt,.88); break;
+    case 'hit': {
+      f.stateT+=dt;
+      faceSmooth(f,f===player?enemy:player,dt,7);
+      const base=f.hitPower?HIT_HEAVY:HIT_LIGHT;
+      const fade=clamp(1-(f.stateT/ (f.hitPower?.55:.34)),0,1);
+      const target={};
+      const mp=mirrorPose(base,f.hitDir);
+      for(const k of POSE_KEYS){const sv=STANCE[k]!==undefined?STANCE[k]:0;target[k]=lerp(sv,mp[k]!==undefined?mp[k]:0,fade)}
+      blendPose(f,target,dt,26);
+      applyVelocity(f,dt,.90);
+      if(now>=f.stunUntil){f.state='idle';f.stateT=0}
+      break;
+    }
+    case 'dodge': {
+      f.stateT+=dt;
+      faceSmooth(f,f===player?enemy:player,dt,14);
+      const lv=f.dodgeLocal||new THREE.Vector3(0,0,1);
+      const k=clamp(1-f.stateT/.42,0,1);
+      const p={};
+      for(const key of POSE_KEYS)p[key]=STANCE[key]!==undefined?STANCE[key]:0;
+      p.bodyZ=-lv.x*.55*k; p.bodyX=(-lv.z)*.42*k; p.hipsLift=STANCE.hipsLift-.30*k;
+      p.lKnee=STANCE.lKnee+.7*k; p.rKnee=STANCE.rKnee+.7*k;
+      p.lSx=STANCE.lSx-.5*k; p.rSx=STANCE.rSx-.35*k; p.rE=STANCE.rE+.5*k;
+      blendPose(f,p,dt,24);
+      applyVelocity(f,dt,.80);
+      if(now>=f.dodgeUntil){f.state='idle';f.stateT=0;f.velocity.multiplyScalar(.35)}
+      break;
+    }
+    case 'guard': {
+      f.stateT+=dt;
+      faceSmooth(f,f===player?enemy:player,dt,16);
+      blendPose(f,GUARD_POSE,dt,20);
+      if(f===player) playerMove(f,dt,.42); else f.velocity.multiplyScalar(Math.pow(.86,dt*60));
+      applyVelocity(f,dt,1);
+      if(!f.blocking){f.state='idle';f.stateT=0}
+      break;
+    }
+    case 'power': {
+      f.stateT+=dt;
+      faceSmooth(f,f===player?enemy:player,dt,22);
+      blendPose(f,POWER_POSE,dt,22);
+      f.velocity.multiplyScalar(Math.pow(.80,dt*60));
+      applyVelocity(f,dt,1);
+      if(now>=f.powerUntil){f.state='idle';f.stateT=0}
+      break;
+    }
+    default: {
+      if(f===player) playerMove(f,dt,1); else updateAI(f,dt,now);
+      updateFacing(f,dt);
+      blendPose(f,locomotionPose(f,dt),dt,15);
+      applyVelocity(f,dt,1);
+    }
+  }
+  writeRig(f);
+  f.root.updateMatrixWorld(true);
+  const tip=f.weapon.userData.tip.getWorldPosition(new THREE.Vector3());
+  f.prevTip.copy(tip); f.tipReady=true;
+}
+
+/* ------------------------------ player ---------------------------------- */
+function playerMoveVector(){
+  const x=(keys.KeyD?1:0)-(keys.KeyA?1:0), z=(keys.KeyW?1:0)-(keys.KeyS?1:0);
+  if(!x&&!z)return new THREE.Vector3();
+  // strictly screen-relative: W is into the screen, D is always screen-right
+  const v=cam.forward.clone().multiplyScalar(z).addScaledVector(cam.right,x);
+  v.y=0; return v.normalize();
+}
+function playerMove(f,dt,mult=1){
+  const dir=playerMoveVector();
+  const spec=FORMS[f.form];
+  const sprint=(keys.ShiftLeft||keys.ShiftRight)&&mult>.9;
+  if(dir.lengthSq()>.001){
+    f.moveDir.copy(dir);
+    // heavier fighters accelerate slower; strafes and backpedals cost speed
+    const local=dir.clone().applyAxisAngle(new THREE.Vector3(0,1,0),-f.facing);
+    const back=clamp(local.z,0,1), side=Math.abs(local.x);
+    const speed=spec.move*mult*(sprint?1.18:1)*(1-back*.30-side*.10);
+    const accel=11/Math.sqrt(spec.mass);
+    f.velocity.lerp(dir.multiplyScalar(speed),damp(accel,dt));
+  } else {
+    // quick, weighty stop: heavier forms coast a little longer
+    f.velocity.multiplyScalar(Math.pow(.86+.045*Math.min(1,spec.mass/3.3),dt*60));
+  }
+}
+
+/* -------------------------------- AI ------------------------------------
+   Aggressive but readable: it closes, circles, throws real strings, presses
+   after landing, blocks and dodges on a human-ish delay, punishes whiffs and
+   walks straight back into melee after knockback. It is not psychic.
+   ------------------------------------------------------------------------ */
+function startCombo(f,len,type){
+  const n=len||(1+Math.floor(Math.random()*3));
+  f.ai.combo=[];
+  for(let i=0;i<n;i++)f.ai.combo.push(Math.random()<(type==='heavy'?.6:.26)?'heavy':'light');
+  const first=f.ai.combo.shift();
+  tryAttack(f,first);
+}
+function updateAI(f,dt,now){
+  if(intro>0){f.velocity.multiplyScalar(Math.pow(.8,dt*60));return}
+  const t=player, ai=f.ai;
+  const dv=t.root.position.clone().sub(f.root.position); dv.y=0;
+  const dist=dv.length(), dir=dv.clone().normalize();
+  const spec=FORMS[f.form], reach=spec.reach, pref=reach*.76;
+  ai.aggression=clamp(.56+(f.form-t.form)*.08+(f.hp<420?.16:0)+(t.hp<420?.12:0)+(now<ai.pressUntil?.16:0),.4,.92);
+
+  // just came out of hitstun: answer the pressure instead of eating the next hit
+  if(ai.wake){
+    ai.wake=false;
+    const pressed=(f.stunChain||0)>=2, r=Math.random();
+    if(r<(pressed?.40:.26)){tryDodge(f);return}
+    if(r<(pressed?.66:.46)){beginGuard(f);setTimeout(()=>{if(f.blocking)endGuard(f)},300+Math.random()*300);return}
+    if(r<.80&&dist<reach*1.05){startCombo(f,1+Math.floor(Math.random()*2));return}
+  }
+
+  if(f.form<4&&f.morph>=100&&dist>2.0&&now>ai.transformWait){
+    if(Math.random()<.55||f.hp<560){ tryTransform(f); return; }
+    ai.transformWait=now+1200;
+  }
+  // human-ish reaction, re-armed on every individual swing of a chain
+  const swingKey=t.state==='attack'?t.attackType+t.step:null;
+  if(swingKey&&swingKey!==ai.seenKey&&dist<reach+2.4){
+    ai.seenKey=swingKey; ai.react=now+150+Math.random()*250; ai.reactRoll=Math.random();
+  }
+  if(!swingKey)ai.seenKey=null;
+  if(ai.react&&now>ai.react){
+    ai.react=0; const r=ai.reactRoll;
+    if(r<.28){beginGuard(f);setTimeout(()=>{if(f.blocking)endGuard(f)},340+Math.random()*300);return}
+    if(r<.44&&dist<reach+1.2){tryDodge(f);return}
+    if(r<.54&&dist<reach*.95){startCombo(f,2);return}
+  }
+  // punish an obvious miss
+  if(t.whiffAt&&now-t.whiffAt<540&&dist<reach+1.0&&now>ai.punish){
+    ai.punish=now+1100; t.whiffAt=0; startCombo(f,2,Math.random()<.5?'heavy':'light'); return;
+  }
+  // keep a started string going
+  if(f.state==='attack'){
+    if(ai.combo.length){
+      const a=f.chain[f.step], tt=f.stateT/attackDur(f,a);
+      if(tt>.45&&dist<reach+1.6) tryAttack(f,ai.combo.shift());
+      else if(tt>.9) ai.combo.length=0;
+    }
+    return;
+  }
+  ai.timer-=dt;
+  if(ai.timer<=0){
+    ai.timer=.10+Math.random()*.16;
+    if(dist<=reach*.98&&now>ai.nextMode){
+      if(Math.random()<ai.aggression){
+        ai.nextMode=now+120+Math.random()*260;
+        startCombo(f,0,Math.random()<.32?'heavy':'light');
+        return;
+      }
+      if(Math.random()<.10){beginGuard(f);setTimeout(()=>{if(f.blocking)endGuard(f)},320+Math.random()*380);return}
+    }
+    if(dist>7.5&&f.energy>46&&Math.random()<.30){tryPower(f);return}
+    if(Math.random()<.14)ai.strafe*=-1;
+  }
+  // movement: close decisively, then circle at melee distance
+  const tangent=new THREE.Vector3(-dir.z,0,dir.x).multiplyScalar(ai.strafe);
+  const move=new THREE.Vector3();
+  if(dist>pref+1.2) move.addScaledVector(dir,1).addScaledVector(tangent,.22);
+  else if(dist<pref-.7) move.addScaledVector(dir,-.85).addScaledVector(tangent,.55);
+  else move.addScaledVector(tangent,1).addScaledVector(dir,.22);
+  if(move.lengthSq()>.001)move.normalize();
+  f.moveDir.copy(move);
+  const closing=dist>pref+1.2;
+  const speed=spec.move*(closing?(dist>9?1.14:1.0):.62);
+  f.velocity.lerp(move.multiplyScalar(speed),damp(9/Math.sqrt(spec.mass),dt));
+}
+
+function animateFormExtras(f,dt,now){
+  if(f.form===2){ f.sigSpin.rotation.y+=dt*.85; f.halo.rotation.z+=dt*.25; }
+  if(f.form===3){ f.ascOrbit.rotation.y+=dt*.55; f.ascCrown.rotation.y-=dt*.4; f.gAsc.position.y=Math.sin(now*.0022)*.10; }
+  if(f.form===4){ f.aura.material.opacity=.05+Math.sin(now*.004)*.02; f.gFinal.rotation.y=Math.sin(now*.0013)*.03; }
+}
+
+/* ===========================================================================
+   CAMERA
+   Its own entity. It is never rotated by body facing, attack animations or
+   transformations. Mouse steers it directly; a gentle dead-zone follow keeps
+   the rival framed without ever yanking the view.
+   ========================================================================= */
+function updateCamera(dt){
+  const maxForm=Math.max(player.form,enemy.form);
+  const p=player.root.position, e=enemy.root.position;
+  const sep=p.distanceTo(e);
+  cam.mouseIdle+=dt;
+
+  const want=Math.atan2(-(e.x-p.x),-(e.z-p.z));
+  const d=angleDelta(cam.yaw,want), dead=.30;
+  if(cam.mouseIdle>.28&&Math.abs(d)>dead){
+    // ease toward the edge of the dead zone: firm enough that the duel never
+    // drifts side-on, soft enough that it never yanks the view out of your hands
+    cam.yaw=angleLerp(cam.yaw,want-Math.sign(d)*dead,damp(3.4,dt));
+  }
+  if(cam.yaw>Math.PI)cam.yaw-=TAU; else if(cam.yaw<-Math.PI)cam.yaw+=TAU;
+
+  cam.distTarget=FORMS[maxForm].cam+clamp((sep-FORMS[maxForm].reach*1.5)*.18,0,3.0)+cam.pullback;
+  cam.dist=lerp(cam.dist,cam.distTarget,damp(9,dt));
+  cam.pullback=Math.max(0,cam.pullback-dt*2.4);
+
+  const cp=Math.cos(cam.pitch), sp=Math.sin(cam.pitch);
+  const fw=new THREE.Vector3(-Math.sin(cam.yaw)*cp,sp,-Math.cos(cam.yaw)*cp);
+  cam.forward.set(-Math.sin(cam.yaw),0,-Math.cos(cam.yaw)).normalize();
+  cam.right.set(-cam.forward.z,0,cam.forward.x).normalize();
+
+  // pivot sits on the player, nudged toward the rival so both stay readable
+  const pivot=p.clone();
+  pivot.y+=2.10+FORMS[player.form].scale*.95+player.hover;
+  const toE=e.clone().sub(p); toE.y=0;
+  const nudge=Math.min(2.4,toE.length()*.22);
+  if(toE.lengthSq()>.001)pivot.addScaledVector(toE.normalize(),nudge);
+  cam.pivot.lerp(pivot,damp(24,dt));
+
+  let desired=cam.pivot.clone().addScaledVector(fw,-cam.dist);
+  const rayDir=desired.clone().sub(cam.pivot), len=rayDir.length();
+  if(len>.01){
+    rayDir.normalize();
+    const ray=new THREE.Raycaster(cam.pivot,rayDir,.2,len);
+    const hits=ray.intersectObjects(cameraSolids,false).filter(h=>h.object.visible);
+    if(hits.length)desired=cam.pivot.clone().addScaledVector(rayDir,Math.max(2.2,hits[0].distance-.5));
+  }
+  desired.y=Math.max(desired.y,.9);
+
+  // stiff positional catch-up: no floaty trailing after a stop or a knockback
+  camera.position.lerp(desired,damp(26,dt));
+  const lag=camera.position.distanceTo(desired);
+  if(lag>4.5)camera.position.lerp(desired,.5);
+
+  camera.rotation.order='YXZ';
+  camera.rotation.set(cam.pitch,cam.yaw,0);
+
+  if(cam.shake>0){
+    cam.shake=Math.max(0,cam.shake-dt*cam.shakeDecay);
+    const a=cam.shake;
+    camera.position.x+=(Math.random()-.5)*a;
+    camera.position.y+=(Math.random()-.5)*a*.5;
+    camera.position.z+=(Math.random()-.5)*a;
+    camera.rotation.z+=(Math.random()-.5)*a*.06;
+  }
+  const targetFov=54+maxForm*1.3+clamp(player.velocity.length()-7.5,0,5)*.5;
+  camera.fov=lerp(camera.fov,targetFov,damp(8,dt));
+  camera.updateProjectionMatrix();
+}
+
+/* ------------------------------ effects --------------------------------- */
+function spawnBurst(pos,color,count=12,speed=4,scale=1){
+  for(let i=0;i<count;i++){
+    const m=new THREE.Mesh(new THREE.BoxGeometry((.04+Math.random()*.05)*scale,.04*scale,(.18+Math.random()*.28)*scale),new THREE.MeshBasicMaterial({color,transparent:true,opacity:1}));
+    m.position.copy(pos); scene.add(m);
+    const v=new THREE.Vector3((Math.random()-.5)*speed,Math.random()*speed*.85,(Math.random()-.5)*speed);
+    particles.push({m,v,life:.22+Math.random()*.34,max:.56,grav:9});
+  }
+}
+function spawnDust(pos,color,count,scale){
+  for(let i=0;i<count;i++){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(.2*scale,.06*scale,.2*scale),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.5}));
+    m.position.copy(pos).add(new THREE.Vector3((Math.random()-.5)*scale,.06,(Math.random()-.5)*scale)); scene.add(m);
+    particles.push({m,v:new THREE.Vector3((Math.random()-.5)*1.6,Math.random()*1.4,(Math.random()-.5)*1.6),life:.4,max:.4,grav:2.5,fade:.5});
+  }
+}
+function spawnRing(pos,color,r){
+  const m=new THREE.Mesh(new THREE.RingGeometry(.4,.52,36),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.85,side:THREE.DoubleSide}));
+  m.position.copy(pos); m.lookAt(camera.position); scene.add(m);
+  particles.push({m,life:.26,max:.26,shock:true,target:r});
+}
+function spawnShockwave(pos,color,r=2){
+  const m=new THREE.Mesh(new THREE.RingGeometry(.5,.62,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8,side:THREE.DoubleSide}));
+  m.rotation.x=-Math.PI/2; m.position.copy(pos).setY(.06); scene.add(m);
+  particles.push({m,life:.5,max:.5,shock:true,target:r});
+}
+function spawnImpactFlash(pos,color,scale){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(.42*scale,10,8),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.95}));
+  m.position.copy(pos); scene.add(m);
+  particles.push({m,life:.11,max:.11,flash:true,target:scale*2.1});
+}
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i]; p.life-=dt;
+    const k=clamp(p.life/p.max,0,1);
+    if(p.shock){const t=1-k;p.m.scale.setScalar(lerp(.5,p.target,smooth(t)));p.m.material.opacity=(1-t)*.8}
+    else if(p.flash){const t=1-k;p.m.scale.setScalar(lerp(.7,p.target,t));p.m.material.opacity=k}
+    else{
+      p.v.y-=(p.grav||9)*dt;
+      p.m.position.addScaledVector(p.v,dt);
+      p.m.rotation.x+=dt*9; p.m.rotation.z+=dt*7;
+      p.m.material.opacity=k*(p.fade||1);
+    }
+    if(p.life<=0){scene.remove(p.m);p.m.geometry.dispose();p.m.material.dispose();particles.splice(i,1)}
+  }
+}
+function environmentImpact(f,power){
+  if(power<50)return;
+  spawnDust(f.root.position.clone(),0x8d826f,Math.min(14,4+Math.round(power/25)),1);
+  cam.shake=Math.max(cam.shake,.06);
+  if(FORMS[f.form].mass>1.9)environmentBlast(f.root.position,2.5+FORMS[f.form].scale,power);
+}
+function environmentBlast(center,radius,power){
+  scene.children.forEach(o=>{
+    if(!o.userData||!o.userData.breakable)return;
+    const p=new THREE.Vector3(); o.getWorldPosition(p);
+    if(p.distanceTo(center)<radius+2){
+      o.userData.damage=(o.userData.damage||0)+power;
+      if(o.userData.damage>220&&o.visible){o.visible=false;spawnDebris(p,0x3b3a38,10)}
+    }
+  });
+}
+function spawnDebris(pos,color,count){
+  for(let i=0;i<count;i++){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(.25+Math.random()*.35,.18+Math.random()*.3,.2+Math.random()*.4),new THREE.MeshStandardMaterial({color,roughness:.8,metalness:.35}));
+    m.position.copy(pos); m.castShadow=true; scene.add(m);
+    debris.push({m,v:new THREE.Vector3((Math.random()-.5)*7,2+Math.random()*5,(Math.random()-.5)*7),life:3});
+  }
+}
+function updateDebris(dt){
+  for(let i=debris.length-1;i>=0;i--){
+    const d=debris[i]; d.life-=dt; d.v.y-=9.5*dt;
+    d.m.position.addScaledVector(d.v,dt);
+    d.m.rotation.x+=dt*2; d.m.rotation.z+=dt*1.7;
+    if(d.m.position.y<.15){d.m.position.y=.15;d.v.y*=-.15;d.v.multiplyScalar(.85)}
+    if(d.life<=0){scene.remove(d.m);debris.splice(i,1)}
+  }
+}
+function launchProjectile(f,target,speed,damage,pierce=false){
+  const from=f.root.position.clone().setY(2.2*FORMS[f.form].scale);
+  const to=target.root.position.clone().setY(2.0*FORMS[target.form].scale);
+  const dir=to.sub(from).normalize();
+  const mesh=new THREE.Mesh(new THREE.SphereGeometry(.18+FORMS[f.form].scale*.09,10,8),new THREE.MeshBasicMaterial({color:f.primary}));
+  mesh.position.copy(from).addScaledVector(dir,1.1); scene.add(mesh);
+  projectiles.push({mesh,owner:f,vel:dir.multiplyScalar(speed),damage,pierce,life:2.2,radius:.5+FORMS[f.form].scale*.12});
+  spawnBurst(mesh.position.clone(),f.primary,8,3,.6);
+}
+function areaStrike(f,target,radius,damage){
+  const center=target.root.position.clone();
+  spawnShockwave(center,f.primary,radius);
+  spawnBurst(center.clone().setY(1.4),f.primary,46,9,1.2);
+  if(!target.dead&&performance.now()>target.invulnUntil)
+    dealHit(f,target,{dmg:damage,kb:2.4,stop:.10,finisher:true},center.clone().setY(2*FORMS[target.form].scale));
+  environmentBlast(center,radius,damage);
+  cam.shake=Math.max(cam.shake,.3); sfx.hitHeavy(FORMS[f.form].mass);
+}
+function updateProjectiles(dt){
+  for(let i=projectiles.length-1;i>=0;i--){
+    const p=projectiles[i]; p.life-=dt;
+    p.mesh.position.addScaledVector(p.vel,dt);
+    p.mesh.scale.setScalar(1+Math.sin(performance.now()*.02)*.18);
+    const t=p.owner===player?enemy:player;
+    const centre=t.root.position.clone().setY(2.0*FORMS[t.form].scale);
+    if(!t.dead&&p.mesh.position.distanceTo(centre)<p.radius+bodyRadius(t)){
+      if(performance.now()>t.invulnUntil)
+        dealHit(p.owner,t,{dmg:p.damage,kb:1.4,stop:.06,finisher:p.damage>140},p.mesh.position.clone());
+      scene.remove(p.mesh); projectiles.splice(i,1); continue;
+    }
+    if(p.life<=0||Math.hypot(p.mesh.position.x,p.mesh.position.z)>arenaRadius+5){scene.remove(p.mesh);projectiles.splice(i,1)}
+  }
+}
+
+/* -------------------------------- HUD ----------------------------------- */
+function showStatus(text,sub=''){const s=$('#status');s.innerHTML=text+(sub?'<small>'+sub+'</small>':'');clearTimeout(showStatus.t);showStatus.t=setTimeout(()=>s.innerHTML='',700)}
+function showCombo(f){
+  const c=$('#combo'); const name=f.chain?f.chain[f.step].name:'';
+  c.textContent=(f.attackType==='heavy'?'HEAVY · ':'LIGHT · ')+name+'  '+(f.step+1)+'/'+f.chain.length;
+  c.style.opacity='1'; clearTimeout(showCombo.t); showCombo.t=setTimeout(hideCombo,900);
+}
+function hideCombo(){$('#combo').style.opacity='0'}
+function hudFlash(a){const el=$('#flash');el.style.opacity=String(a);clearTimeout(hudFlash.t);hudFlash.t=setTimeout(()=>el.style.opacity='0',90)}
+function updateHUD(){
+  $('#pHp').style.transform=`scaleX(${player.hp/player.maxHp})`;
+  $('#eHp').style.transform=`scaleX(${enemy.hp/enemy.maxHp})`;
+  $('#pHpGhost').style.transform=`scaleX(${player.hpGhost/player.maxHp})`;
+  $('#eHpGhost').style.transform=`scaleX(${enemy.hpGhost/enemy.maxHp})`;
+  $('#pEnergy').style.transform=`scaleX(${player.energy/100})`;
+  $('#eEnergy').style.transform=`scaleX(${enemy.energy/100})`;
+  $('#pMorph').style.transform=`scaleX(${player.morph/100})`;
+  $('#eMorph').style.transform=`scaleX(${enemy.morph/100})`;
+  $('#pMorphWrap').className='meter transform'+(player.morph>=100&&player.form<4?' ready':'');
+  $('#eMorphWrap').className='meter transform'+(enemy.morph>=100&&enemy.form<4?' ready':'');
+  $('#pFormName').textContent=`${roman[player.form]} · ${FORMS[player.form].name}`;
+  $('#eFormName').textContent=`${roman[enemy.form]} · ${FORMS[enemy.form].name}`;
+  $('#timer').textContent=Math.max(0,Math.ceil(matchTime));
+}
+
+/* ----------------------------- match flow ------------------------------- */
+function resetMatch(){
+  [player,enemy].forEach(f=>{
+    f.hp=1000;f.hpGhost=1000;f.energy=100;f.morph=0;f.dead=false;f.blocking=false;
+    f.state='idle';f.stateT=0;f.chain=null;f.attackType=null;f.step=0;f.buffer=null;
+    f.attackHit=false;f.attackWhiffFlag=false;f.whiffAt=0;
+    f.stunUntil=0;f.invulnUntil=0;f.dodgeUntil=0;f.transformUntil=0;f.powerUntil=0;f.lastQ=0;
+    f.velocity.set(0,0,0);f.moveDir.set(0,0,0);f.gait=0;f.hover=0;
+    f.ai.combo.length=0;f.ai.timer=0;f.ai.reacting=false;f.ai.react=0;f.ai.punish=0;f.ai.nextMode=0;f.ai.transformWait=0;
+    setForm(f,0,true);
+    f.cur=Object.assign({},STANCE);
+    for(const k of POSE_KEYS)if(f.cur[k]===undefined)f.cur[k]=0;
+    writeRig(f);
+  });
+  player.root.position.set(0,0,5.4); enemy.root.position.set(0,0,-5.4);
+  player.facing=0; enemy.facing=Math.PI;
+  player.root.rotation.y=0; enemy.root.rotation.y=Math.PI;
+  for(const p of particles)scene.remove(p.m); particles.length=0;
+  for(const d of debris)scene.remove(d.m); debris.length=0;
+  for(const p of projectiles)scene.remove(p.mesh); projectiles.length=0;
+  cam.yaw=0; cam.pitch=-.20; cam.dist=FORMS[0].cam; cam.pullback=0; cam.shake=0; cam.mouseIdle=99;
+  cam.pivot.copy(player.root.position).add(new THREE.Vector3(0,2.6,0));
+  camera.position.copy(cam.pivot).add(new THREE.Vector3(0,cam.dist*.20,cam.dist));
+  matchTime=180; hitFreeze=0; intro=2.4; running=true;
+  $('#endCard').style.display='none'; $('#status').textContent=''; hideCombo();
+  updateHUD();
+}
+function endMatch(win){
+  running=false; document.exitPointerLock?.();
+  $('#endTitle').textContent=win?'VICTORY':'DEFEAT';
+  $('#endSub').textContent=win?'The rival falls. Your next form awaits.':'The rival read you first. Rematch and adapt.';
+  $('#endCard').style.display='grid';
+}
+
+/* ------------------------------- input ---------------------------------- */
+function bindInput(){
+  document.addEventListener('keydown',e=>{
+    keys[e.code]=true; if(!running)return;
+    if(e.code==='KeyE')tryDodge(player);
+    if(e.code==='KeyF')beginGuard(player);
+    if(e.code==='KeyR')tryTransform(player);
+    if(e.code==='KeyQ')tryPower(player);
+  });
+  document.addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='KeyF')endGuard(player)});
+  document.addEventListener('mousedown',e=>{
+    if(!running||$('#menu').style.display!=='none')return;
+    if(e.button===0)tryAttack(player,'light');
+    if(e.button===2)tryAttack(player,'heavy');
+  });
+  document.addEventListener('contextmenu',e=>e.preventDefault());
+  window.addEventListener('blur',()=>{keys={};endGuard(player)});
+  $('#playBtn').addEventListener('click',()=>{
+    try{const AC=window.AudioContext||window.webkitAudioContext;if(!audioCtx&&AC)audioCtx=new AC();audioCtx?.resume?.();}catch(err){console.warn('Audio unavailable',err)}
+    $('#menu').style.display='none'; resetMatch();
+    try{renderer.domElement.requestPointerLock?.()}catch(err){}
+  });
+  $('#rematch').addEventListener('click',()=>{resetMatch();try{renderer.domElement.requestPointerLock?.()}catch(err){}});
+}
+
+/* -------------------------------- loop ---------------------------------- */
+function loop(ts){
+  requestAnimationFrame(loop);
+  let dt=Math.min(.033,(ts-lastTs)/1000||.016); lastTs=ts;
+  if(!running){renderer.render(scene,camera);return}
+  if(hitFreeze>0){
+    // hitstop: the world holds for a beat so contact registers physically
+    hitFreeze-=dt;
+    updateParticles(dt*.3); updateCamera(dt*.35);
+    renderer.render(scene,camera); return;
+  }
+  const now=performance.now();
+  if(intro>0){
+    intro-=dt;
+    $('#status').textContent=intro>1.6?'READY':intro>.6?'ASCEND':'FIGHT';
+    if(intro<=0)$('#status').textContent='';
+    updateFighter(player,dt,now); updateFighter(enemy,dt,now);
+    updateCamera(dt); renderer.render(scene,camera); return;
+  }
+  matchTime-=dt;
+  if(matchTime<=0){endMatch(player.hp>=enemy.hp);return}
+  updateFighter(player,dt,now);
+  updateFighter(enemy,dt,now);
+  separateFighters(player,enemy);
+  updateProjectiles(dt); updateParticles(dt); updateDebris(dt);
+  updateCamera(dt); updateHUD();
+  renderer.render(scene,camera);
+}
+
+init();
+})();
+} catch (err) { showBootError(err); }
+}).catch(showBootError);
+</script>
+</body>
+</html>
