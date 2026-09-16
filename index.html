@@ -21,15 +21,188 @@
 <noscript><div class="boot"><div><b>ASTRA//SIGNATURE</b><small>JavaScript is required to calculate and render the chart.</small></div></div></noscript>
 <script>
 (async()=>{
+  const patchOnce = (src, needle, replacement, label) => {
+    if (!src.includes(needle)) throw new Error(`ASTRA patch missing: ${label}`);
+    return src.replace(needle, replacement);
+  };
   try{
     let app=await (await fetch('./app.html',{cache:'no-store'})).text();
-    app=app.replace('width=device-width, initial-scale=1.0','width=device-width, initial-scale=1.0, viewport-fit=cover');
-    app=app.replace('Enter your birth data. ASTRA//SIGNATURE computes the real chart and reads it back as a developmental instrument.','Enter your birth data. ASTRA//SIGNATURE computes an astronomically calculated chart and reads it back as a developmental instrument.');
-    app=app.replace('Tropical zodiac, whole degrees of longitude, no house system beyond the angles.','When birth time is known, houses use the selected Placidus, Whole Sign, or Equal system. Sidereal mode applies the selected ayanamsa.');
-    app=app.replace('</form>\n    <details class="method">','</form>\n    <p class="hint" style="margin-top:10px">Birth data is processed locally in this browser and is not uploaded.</p>\n    <details class="method">');
-    app=app.replace('<div class="voicebar" id="voiceBar" data-state="offline">','<div class="voicebar" id="voiceBar" data-state="offline" hidden>');
-    app=app.replace('ANCIENT SYMBOLS · REAL EPHEMERIS','ANCIENT SYMBOLS · CALCULATED SKY');
-    app=app.replace('</head>','<style>@media(max-width:820px){input,select{font-size:16px!important}}</style></head>');
+
+    app=patchOnce(app,'width=device-width, initial-scale=1.0','width=device-width, initial-scale=1.0, viewport-fit=cover','viewport');
+    app=patchOnce(app,'Enter your birth data. ASTRA//SIGNATURE computes the real chart and reads it back as a developmental instrument.','Enter your birth data. ASTRA//SIGNATURE computes an astronomically calculated chart and reads it back as a developmental instrument.','description');
+    app=patchOnce(app,'Tropical zodiac, whole degrees of longitude, no house system beyond the angles.','When birth time is known, houses use the selected Placidus, Whole Sign, or Equal system. Sidereal mode applies the selected ayanamsa.','method copy');
+    app=patchOnce(app,'</form>\n    <details class="method">','</form>\n    <p class="hint" style="margin-top:10px">Birth data is processed locally in this browser and is not uploaded.</p>\n    <details class="method">','privacy note');
+    app=patchOnce(app,'<div class="voicebar" id="voiceBar" data-state="offline">','<div class="voicebar" id="voiceBar" data-state="offline" hidden aria-hidden="true">','voice hidden');
+    app=patchOnce(app,'ANCIENT SYMBOLS · REAL EPHEMERIS','ANCIENT SYMBOLS · CALCULATED SKY','footer claim');
+    app=app.replace('MOON MAY BE OFF BY UP TO 13°.','MOON MAY BE OFF BY UP TO ABOUT 8°.');
+
+    const releaseCSS = `<style>
+.voicebar[hidden]{display:none!important}
+@media(min-width:821px) and (max-width:1180px){
+  .workspace{grid-template-rows:auto auto;align-content:start}
+  .readpanel{position:relative;z-index:1}
+}
+@media(max-width:820px){
+  input,select{font-size:16px!important}
+  .topbar{padding-top:calc(14px + env(safe-area-inset-top,0px))}
+  footer{padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+}
+</style>`;
+    app=patchOnce(app,'</head>',releaseCSS+'</head>','release CSS');
+
+    app=patchOnce(app,
+`  // Placidus is undefined inside the polar circles; fall back rather than emit nonsense.
+  if (Math.abs(lat) > 66) return Array.from({ length:12 }, (_, i) => norm(ascLon + i * 30));
+  const eps = obliquity(centuries(jd)), ramc = norm(gmst(jd) + lonEast);`,
+`  // Placidus is undefined inside the polar circles; fall back rather than emit nonsense.
+  const eps = obliquity(centuries(jd)), polarLimit = 90 - eps;
+  if (Math.abs(lat) >= polarLimit) return Array.from({ length:12 }, (_, i) => norm(ascLon + i * 30));
+  const ramc = norm(gmst(jd) + lonEast);`,
+'Placidus polar threshold');
+
+    app=patchOnce(app,
+`  const system = opts.houses || (sidereal ? "Whole Sign" : "Placidus");
+  let cusps = null;
+  if (hasTime) {
+    // Whole Sign and Equal are defined off the ascendant in whichever zodiac is in use.`,
+`  const requestedSystem = opts.houses || (sidereal ? "Whole Sign" : "Placidus");
+  let system = requestedSystem;
+  let cusps = null;
+  if (hasTime) {
+    const polarLimit = 90 - obliquity(centuries(jd));
+    if (requestedSystem === "Placidus" && Math.abs(lat) >= polarLimit)
+      system = "Equal (Placidus unavailable at this latitude)";
+    // Whole Sign and Equal are defined off the ascendant in whichever zodiac is in use.`,
+'Placidus effective label');
+    app=patchOnce(app,'    cusps = system === "Placidus"','    cusps = requestedSystem === "Placidus"','Placidus requested calculation');
+    app=patchOnce(app,'      : houseCusps(system, jd, lat, lon, asc.longitude, mc.longitude);','      : houseCusps(requestedSystem, jd, lat, lon, asc.longitude, mc.longitude);','house calculation label');
+
+    app=patchOnce(app,
+'  const nm = (profile && profile.name ? profile.name : "").toUpperCase();',
+`  const xmlEscape = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
+  const nm = xmlEscape((profile && profile.name ? profile.name : "").toUpperCase());`,
+'SVG name escaping');
+
+    app=patchOnce(app,
+'  $("tz").innerHTML = TZ_LIST.map(t => `<option value="${t}">${t.replace(/_/g, " ")}</option>`).join("");',
+'  $("tz").innerHTML = `<option value="">SELECT TIME ZONE</option>` + TZ_LIST.map(t => `<option value="${t}">${t.replace(/_/g, " ")}</option>`).join("");',
+'time zone placeholder');
+
+    app=patchOnce(app,
+`function applyCity() {
+  const c = CITY_BY_NAME[$("place").value.trim().toLowerCase()];
+  if (c) { $("lat").value = c.lat; $("lon").value = c.lon; $("tz").value = c.tz;
+    $("placeHint").innerHTML = \`Using <b>\${c.lat.toFixed(2)}°, \${c.lon.toFixed(2)}°</b> · \${c.tz.replace(/_/g, " ")}\`; }
+  else $("placeHint").textContent = "Not in the list — set latitude, longitude and time zone yourself.";
+}`,
+`function applyCity() {
+  const c = CITY_BY_NAME[$("place").value.trim().toLowerCase()];
+  if (c) {
+    $("lat").value = c.lat; $("lon").value = c.lon; $("tz").value = c.tz;
+    $("placeHint").innerHTML = \`Using <b>\${c.lat.toFixed(2)}°, \${c.lon.toFixed(2)}°</b> · \${c.tz.replace(/_/g, " ")}\`;
+  } else {
+    $("lat").value = ""; $("lon").value = ""; $("tz").value = "";
+    $("placeHint").textContent = "Not in the list — enter latitude, longitude and choose a time zone.";
+  }
+}`,
+'stale city coordinates');
+
+    app=patchOnce(app,
+'  const tz = $("tz").value || "UTC";\n  return { name:$("name").value.trim(), utcMs:localToUTC(tz, y, mo, d, h, mi), lat, lon, hasTime:!noTime, tz };',
+'  const tz = $("tz").value; if (!tz) return err("Choose a time zone for this location.");\n  return { name:$("name").value.trim(), utcMs:localToUTC(tz, y, mo, d, h, mi), lat, lon, hasTime:!noTime, tz };',
+'time zone validation');
+
+    app=patchOnce(app,
+'  $("date").value = now.toISOString().slice(0, 10);',
+'  $("date").value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;',
+'local boot date');
+
+    app=patchOnce(app,'let view = { ...VIEW_DEFAULT };','let view = { ...VIEW_DEFAULT };\nlet resetAnimToken = 0;','reset animation state');
+    app=patchOnce(app,
+'  svg.addEventListener("pointerdown", e => {\n    if (e.button > 0) return;',
+'  svg.addEventListener("pointerdown", e => {\n    resetAnimToken++;\n    if (e.button > 0) return;',
+'reset interruption');
+
+    app=patchOnce(app,
+'$("tiltReset").addEventListener("click", () => { stopTour(true); view = { ...VIEW_DEFAULT }; buildWheel(true); });',
+`$("tiltReset").addEventListener("click", () => {
+  stopTour(true);
+  const token = ++resetAnimToken;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    view = { ...VIEW_DEFAULT }; fastMode = false; buildWheel(true); return;
+  }
+  const from = { yaw:view.yaw, tilt:view.tilt }, start = performance.now(), duration = 560;
+  const step = now => {
+    if (token !== resetAnimToken) return;
+    const k = Math.min(1, (now - start) / duration), e = easeInOut(k);
+    view.yaw = norm(from.yaw + shortArc(VIEW_DEFAULT.yaw - from.yaw) * e);
+    view.tilt = from.tilt + (VIEW_DEFAULT.tilt - from.tilt) * e;
+    fastMode = k < 1; buildWheel(true);
+    if (k < 1) requestAnimationFrame(step);
+    else { view = { ...VIEW_DEFAULT }; fastMode = false; buildWheel(true); }
+  };
+  requestAnimationFrame(step);
+});`,
+'animated reset');
+
+    app=patchOnce(app,
+'/* ============ POINTER GEOMETRY ============ */',
+'$("sigil").addEventListener("focusin", () => { if (tour.running) stopTour(true); });\n\n/* ============ POINTER GEOMETRY ============ */',
+'keyboard sphere focus');
+
+    app=patchOnce(app,
+`function setMode(m) {
+  mode = m;
+  document.querySelectorAll("[data-mode]").forEach(b => {
+    const on = b.dataset.mode === m;
+    b.classList.toggle("active", on); b.setAttribute("aria-pressed", on);
+  });
+  picks = mode === "single" ? [selected] : picks.slice(0, NEEDED[m]);
+  buildWheel(true); renderReading();
+}`,
+`function setMode(m) {
+  mode = m;
+  document.querySelectorAll("[data-mode]").forEach(b => {
+    const on = b.dataset.mode === m;
+    b.classList.toggle("active", on); b.setAttribute("aria-pressed", on);
+  });
+  picks = mode === "single" ? [selected] : [];
+  buildWheel(true); renderReading();
+  if (mode !== "single" && window.matchMedia("(max-width:820px)").matches) {
+    requestAnimationFrame(() => $("sigilwrap").scrollIntoView({
+      behavior: matchMedia("(prefers-reduced-motion:reduce)").matches ? "auto" : "smooth",
+      block:"start"
+    }));
+  }
+}`,
+'Bridge and Synth entry');
+
+    app=patchOnce(app,
+'    $("pickHint").textContent = `SELECT ${need - chosen.length} MORE ${need - chosen.length === 1 ? "BODY" : "BODIES"} ON THE WHEEL`;',
+'    $("pickHint").textContent = `SELECT BODY ${chosen.length + 1}`;',
+'selection step hint');
+
+    app=patchOnce(app,
+`  if (mode === "bridge") {
+    const p = pairs[0], key = [SIGNS[p.a.sign].el, SIGNS[p.b.sign].el].sort().join("+");
+    text = \`<b>\${p.a.name} in \${p.a.sign}</b> and <b>\${p.b.name} in \${p.b.sign}</b> are \${ASPECT_DYNAMIC[p.rel.name].verb}. \` +
+      \`\${ASPECT_DYNAMIC[p.rel.name].line} \` +
+      \`Your \${p.a.domain.toLowerCase()} runs on \${SIGNS[p.a.sign].current}; your \${p.b.domain.toLowerCase()} runs on \${SIGNS[p.b.sign].current}. \` +
+      \`\${ELEMENT_PAIR[key] || ""}\`;
+  } else {`,
+`  if (mode === "bridge") {
+    const p = pairs[0], key = [SIGNS[p.a.sign].el, SIGNS[p.b.sign].el].sort().join("+");
+    if (p.rel.name === "none") {
+      text = \`<b>NO MAJOR BRIDGE</b> · \${p.a.name} ↔ \${p.b.name} · \${angSep(p.a.longitude, p.b.longitude).toFixed(1)}° separation. Choose another body to inspect a tracked aspect.\`;
+    } else {
+      text = \`<b>\${p.a.name} in \${p.a.sign}</b> and <b>\${p.b.name} in \${p.b.sign}</b> are \${ASPECT_DYNAMIC[p.rel.name].verb}. \` +
+        \`\${ASPECT_DYNAMIC[p.rel.name].line} \` +
+        \`Your \${p.a.domain.toLowerCase()} runs on \${SIGNS[p.a.sign].current}; your \${p.b.domain.toLowerCase()} runs on \${SIGNS[p.b.sign].current}. \` +
+        \`\${ELEMENT_PAIR[key] || ""}\`;
+    }
+  } else {`,
+'unlinked Bridge filler');
+
     document.open();document.write(app);document.close();
   }catch(err){
     document.getElementById('boot').innerHTML='<div><b>ASTRA//SIGNATURE</b><small>Unable to load the celestial engine. Refresh to try again.</small></div>';
