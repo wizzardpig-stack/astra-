@@ -76,6 +76,12 @@ Absolute URLs live in four places. Update all of them together:
 Then add a `CNAME` file containing the bare domain, and set it under
 **Settings → Pages → Custom domain**.
 
+## Also in this repository
+
+[`specimen/`](specimen/) is a separate product: **SPECIMEN**, a desktop organism
+for Windows. It shares nothing with ASTRA but the repository. See
+[specimen/README.md](specimen/README.md).
+
 ## Status
 
 Public release **v1.1**. Independent product direction, domain framing,
