@@ -245,6 +245,7 @@ export class Behavior {
   // ----------------------------------------------------------------- tick
 
   update(dt, ctx) {
+    this.dt = dt;
     this.stateTime += dt;
     this.state.t = this.stateTime;
 
@@ -284,7 +285,7 @@ export class Behavior {
         : this.fear > 0.5
           ? 0.1
           : clamp(0.3 + this.alert * 0.45 + Math.abs(this.speed) / 400, 0, 1);
-    this.charge += (charge - this.charge) * Math.min(1, 3 * 0.016);
+    this.charge += (charge - this.charge) * Math.min(1, 3 * (this.dt || 0.016));
 
     return {
       mode: this.mode,
@@ -347,12 +348,18 @@ export class Behavior {
         if (this.ghost && this.ghost.ownerId === ev.id) this.ghost = null;
         this.plan = this.plan.filter((h) => h.to !== ev.id && h.from !== ev.id);
       } else if (ev.type === 'frame-moved') {
-        if (ev.id === curId) {
+        if (this.ghost && this.ghost.ownerId === ev.id) {
+          // The window SPEC is hidden behind moved. Keep it where it was in
+          // world space rather than letting it pop out somewhere else.
+          const here = this.worldPoint();
+          this.ghost = null;
+          this.frame = ev.frame;
+          this.s = project(ev.frame, here.x, here.y).s;
+        } else if (ev.id === curId) {
           // SPEC rides the surface: keep arc position, clamp to the new size.
           this.frame = ev.frame;
           this.s = wrapS(ev.frame, this.s);
         }
-        if (this.ghost && this.ghost.ownerId === ev.id) this.ghost = null;
       }
     }
   }

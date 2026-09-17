@@ -133,3 +133,20 @@ test('SPEC does not walk off the visible desktop along a surface', () => {
   run(w, 20);
   assert.ok(inBounds(w.spec.headPoint(), 40));
 });
+
+test('moving the window SPEC is hiding behind does not teleport it', async () => {
+  const w = makeWorld({ seed: 21, bounds: BOUNDS });
+  const win = w.terrain.get('win:1');
+  w.behavior.hideBehind(win);
+  for (let i = 0; i < 60 * 60 && w.behavior.behind === null; i++) step(w, 1 / 60);
+  assert.equal(w.behavior.behind, 'win:1');
+
+  const before = w.behavior.worldPoint();
+  const moved = w.env.windows.map((x) => (x.id === 1 ? { ...x, x: x.x + 80 } : x));
+  applyEnv(w, { windows: moved });
+  step(w, 1 / 60);
+  const after = w.behavior.worldPoint();
+  assert.ok(Math.hypot(after.x - before.x, after.y - before.y) < 90, 'stayed where it was');
+  run(w, 3);
+  assert.ok(inBounds(w.spec.headPoint()));
+});
